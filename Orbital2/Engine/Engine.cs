@@ -1,226 +1,142 @@
 ﻿using Orbital2.Physics;
 using Orbital2.Physics.Collision;
+using Orbital2.Physics.Gravity;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Orbital2.Engine
+namespace Orbital2.Engine;
+
+public class Engine
 {
-    public class Engine
+    public float PhysicsTimestep
     {
-        public float PhysicsTimestep
-        {
-            get => physics_timestep;
-            set
-            {
-                if (physics_timestep <= 0)
-                {
-                    throw new ArgumentException("Physics timestep must be greater than zero.");
-                }
+        get => GameWorld.PhysicsWorld.Timestep;
+        set => GameWorld.PhysicsWorld.Timestep = value;
+    }
 
-                accumulator = accumulator / physics_timestep * value;
-                physics_timestep = value;
+    public GameWorld GameWorld { get; } = new();
+    public Input Input { get; } = new();
+
+    private List<Tuple<float, PhysicalGameObject, PhysicalGameObject>> collisions = [];
+
+    private EventContext eventContext;
+
+    private float accumulator = 0;
+
+    private Stopwatch watch = new();
+    private double totalTime = 0;
+    private int runs = 0;
+
+    public Engine(float physicsTimestep = 0.2f)
+    {
+        PhysicsTimestep = physicsTimestep;
+        accumulator = 0;
+
+        eventContext = new(GameWorld) { Input = Input };
+    }
+
+    public void Update(float timestep)
+    {
+        accumulator += timestep;
+
+        TriggerWaitingCollisions(accumulator / PhysicsTimestep);
+
+        while(accumulator >= PhysicsTimestep)
+        {
+            UpdatePhysics();
+            accumulator -= PhysicsTimestep;
+        }
+
+        UpdateGameWorld();
+
+        GameWorld.PhysicsWorld.InterpolateLinear(accumulator / PhysicsTimestep);
+
+        foreach (var gameObject in GameWorld.GameObjects)
+        {
+            gameObject.OnFrameUpdate(timestep, eventContext);
+        }
+
+        UpdateGameWorld();
+    }
+
+    private void UpdateGameWorld()
+    {
+        var events = GameWorld.ProcessGameObjectQueue();
+
+        foreach(var ev in events)
+        {
+            if(ev.Remove)
+            {
+                ev.GameObject.OnRemove(eventContext);
+            }
+            else
+            {
+                ev.GameObject.OnStart(eventContext);
             }
         }
+    }
 
-        public IReadOnlyList<GameObject> GameObjects => game_objects.AsReadOnly();
-        public IReadOnlyList<PhysicalGameObject> PhysicalObjects => physical_objects.AsReadOnly();
-
-        private readonly List<GameObject> game_objects = [];
-        private readonly List<PhysicalGameObject> physical_objects = [];
-
-        private readonly Dictionary<Body, PhysicalGameObject> body_lookup = [];
-
-        private readonly Dictionary<string, List<GameObject>> name_lookup = [];
-        private readonly Dictionary<GameObject, string> object_names = [];
-
-        private readonly HashSet<GameObject> marked_for_removal = [];
-
-        private List<Tuple<float, PhysicalGameObject, PhysicalGameObject>> collisions = [];
-
-        private readonly World world = new();
-
-        private float accumulator = 0;
-        private float physics_timestep = 0.2f;
-
-        public Engine(float physics_timestep = 0.2f)
+    private void UpdatePhysics()
+    {
+        foreach (var gameObject in GameWorld.GameObjects)
         {
-            PhysicsTimestep = physics_timestep;
-            accumulator = PhysicsTimestep;
+            gameObject.PrePhysicsUpdate(PhysicsTimestep, eventContext);
         }
 
-        public void Update(float timestep)
+        GameWorld.PhysicsWorld.Step();
+
+        foreach (var gameObject in GameWorld.GameObjects)
         {
-            UpdatePhysics(timestep);
-
-            float t = accumulator / physics_timestep;
-            world.InterpolateLinear(t);
-
-            foreach (var game_object in game_objects)
-            {
-                game_object.FrameUpdate(timestep, this);
-            }
-
-            foreach(var obj in marked_for_removal)
-            {
-                RemoveObjectHelper(obj);
-            }
-            marked_for_removal.Clear();
-
-            TriggerWaitingCollisions(t);
+            gameObject.PostPhysicsUpdate(PhysicsTimestep, eventContext);
         }
 
-        private void UpdatePhysics(float timestep)
+        watch.Start();
+        FindAndTriggerCollisions();
+        watch.Stop();
+
+        totalTime += watch.Elapsed.TotalSeconds;
+        runs++;
+
+        watch.Reset();
+
+        if(runs == 50)
         {
-            accumulator += timestep;
+            Debug.WriteLine($"Average collision time: {totalTime / runs}");
+        }
+    }
 
-            while (accumulator > physics_timestep)
-            {
-                foreach (var game_object in game_objects)
-                {
-                    game_object.PrePhysicsUpdate(timestep, this);
-                }
+    private void FindAndTriggerCollisions()
+    {
+        collisions.Clear();
 
-                accumulator -= physics_timestep;
-                world.Step(physics_timestep);
+        foreach (var collision in GameWorld.PhysicsWorld.FindCollisions())
+        {
+            var goa = GameWorld.GetGameObjectByBody(collision.Item2);
+            var gob = GameWorld.GetGameObjectByBody(collision.Item3);
 
-                foreach (var game_object in game_objects)
-                {
-                    game_object.PostPhysicsUpdate(timestep, this);
-                }
-            }
+            if(goa == null || gob == null) continue;
 
-            FindAndTriggerCollisions();
+            collisions.Add(new(collision.Item1, goa, gob));
+
+            goa.OnCollisionFound(gob, collision.Item1, eventContext);
         }
 
-        private void TriggerWaitingCollisions(float t)
+        collisions.Sort((colA, colB) => MathF.Sign(colA.Item1 - colB.Item1));
+    }
+
+    private void TriggerWaitingCollisions(float t)
+    {
+        while (collisions.Count > 0)
         {
-            while (collisions.Count > 0)
-            {
-                if (t < collisions.First().Item1) break;
+            if (t < collisions.First().Item1) break;
 
-                collisions.First().Item2.OnCollisionPassed(collisions.First().Item2, t, this);
+            collisions.First().Item2.OnCollisionPassed(collisions.First().Item3, t, eventContext);
 
-                collisions.RemoveAt(0);
-            }
-        }
-
-        private void FindAndTriggerCollisions()
-        {
-            collisions.Clear();
-
-            var broad_phase = new SweepAndPrune();
-            var potential_collisions = broad_phase.FindPotentialCollisions(world.Bodies);
-
-            foreach(var collision in potential_collisions)
-            {
-                var goa = body_lookup[collision.Item1];
-                var gob = body_lookup[collision.Item2];
-
-                float? collision_t = collision.Item1.GetCollisionT(collision.Item2);
-
-                if (collision_t == null) continue;
-
-                goa.OnCollisionFound(gob, collision_t.Value, this);
-
-                collisions.Add(new(collision_t.Value, goa, gob));
-            }
-
-            collisions.Sort((col_a, col_b) => MathF.Sign(col_a.Item1 - col_b.Item1));
-        }
-
-        public void AddObject(GameObject game_object, string? name = null)
-        {
-            game_objects.Add(game_object);
-
-            if (game_object is PhysicalGameObject physical_object)
-            {
-                physical_objects.Add(physical_object);
-                world.AddBody(physical_object.Body);
-                body_lookup[physical_object.Body] = physical_object;
-            }
-
-            if (name != null)
-            {
-                AddName(game_object, name);
-            }
-        }
-
-        public void RemoveObject(GameObject game_object)
-        {
-            marked_for_removal.Add(game_object);
-        }
-
-        private void RemoveObjectHelper(GameObject game_object)
-        {
-            game_objects.Remove(game_object);
-
-            if (game_object is PhysicalGameObject physical_object)
-            {
-                physical_objects.Remove(physical_object);
-                world.RemoveBody(physical_object.Body);
-                body_lookup.Remove(physical_object.Body);
-            }
-
-            RemoveName(game_object);
-        }
-        
-        private void AddName(GameObject game_object, string name)
-        {
-            if (!name_lookup.ContainsKey(name))
-            {
-                name_lookup[name] = [];
-            }
-
-            name_lookup[name].Add(game_object);
-            object_names[game_object] = name;
-        }
-
-        private void RemoveName(GameObject game_object)
-        {
-            string? name = object_names.GetValueOrDefault(game_object);
-            if (name != null)
-            {
-                name_lookup[name].Remove(game_object);
-
-                if (name_lookup[name].Count == 0)
-                {
-                    name_lookup.Remove(name);
-                }
-            }
-
-            object_names.Remove(game_object);
-        }
-
-        public void SetName(GameObject game_object, string? name)
-        {
-            RemoveName(game_object);
-
-            if (name != null)
-            {
-                AddName(game_object, name);
-            }
-        }
-
-        public IReadOnlyList<GameObject> FindObjectsByName(string name)
-        {
-            return name_lookup.GetValueOrDefault(name, []).AsReadOnly();
-        }
-
-        public GameObject? FindFirstObjectByName(string name)
-        {
-            return FindObjectsByName(name).FirstOrDefault();
-        }
-
-        public void ClearObjects()
-        {
-            game_objects.Clear();
-            physical_objects.Clear();
-            world.Clear();
-            name_lookup.Clear();
-            object_names.Clear();
+            collisions.RemoveAt(0);
         }
     }
 }

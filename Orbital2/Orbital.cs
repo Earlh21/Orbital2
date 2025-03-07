@@ -11,156 +11,195 @@ using Orbital2.Physics.Collision;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Orbital2.Engine;
-using Orbital2.GameObjects;
+using Orbital2.Game;
+using Orbital2.Game.Astrobodies;
+using MonoGame.Extended.Collections;
 
-namespace Orbital2
+namespace Orbital2;
+
+public class Orbital : Microsoft.Xna.Framework.Game
 {
-    public class Orbital : Game
+    public Engine.Engine Engine { get; set; } = new();
+    public GameWorld GameWorld => Engine.GameWorld;
+
+    public float TimeScale { get; set; } = 1;
+        
+    private GraphicsDeviceManager graphics;
+    private SpriteBatch spriteBatch;
+    private SpriteFont arial;
+
+    private Camera camera = new(0, 0, 10);
+
+    private bool startedPanning = false;
+    private int previousScrollValue = 0;
+    private Point startMousePos = new(0, 0);
+
+    private bool drawOutlines = false;
+
+    public Orbital()
     {
-        private GraphicsDeviceManager graphics;
-        private SpriteBatch sprite_batch;
+        graphics = new GraphicsDeviceManager(this);
+        Content.RootDirectory = "Content";
+        IsMouseVisible = true;
+        Window.AllowUserResizing = true;
+    }
 
-        private Engine.Engine engine = new(1f);
+    //TODO: SPH on collisions wouldn't actually be that hard to implement, especially if I'm aiming for a low planet count
+    protected override void Initialize()
+    {
+        arial = Content.Load<SpriteFont>("arial");
+        base.Initialize();
+    }
 
-        private Camera camera = new(0, 0, 10);
+    protected override void LoadContent()
+    {
+        spriteBatch = new SpriteBatch(GraphicsDevice);
+    }
 
-        private bool started_panning = false;
-        private int previous_scroll_value = 0;
-        private Point start_mouse_pos = new(0, 0);
-        private Point previous_mouse_pos = new(0, 0);
+    private void UpdateInput(GameTime gameTime)
+    {
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+            Exit();
 
-        private Stopwatch stopwatch = new();
-
-        private float current_time = 0;
-        private float physics_timestep = 0.4f;
-        private float accumulator = 0.2f;
-        private float time_scale = 1f;
-
-        public Orbital()
+        if (Mouse.GetState().RightButton == ButtonState.Pressed && IsActive)
         {
-            graphics = new GraphicsDeviceManager(this);
-            Content.RootDirectory = "Content";
-            IsMouseVisible = true;
-            Window.AllowUserResizing = true;
-        }
-
-        protected override void Initialize()
-        {
-            Random rand = new();
-
-            Body body = new(new());
-            body.Mass = 10;
-
-            Body body2 = new(new(6, 0));
-            body2.Velocity = new(0, 4);
-
-            Body body3 = new(new(-9, 16));
-            body3.Velocity = new(0, -2);
-
-            engine.AddObject(new Planet(body));
-            engine.AddObject(new Planet(body2));
-            //engine.AddObject(new Planet(body3));
-
-            Body body4 = new(new());
-
-            Body body5 = new(new(5, 0));
-            body5.Velocity = new(-10, 0);
-
-            //engine.AddObject(new Planet(body4));
-            //engine.AddObject(new Planet(body5));
-
-            engine.AddObject(new GravityObject(new AllPairsGravity { GravitationalConstant = 5 }));
-
-            base.Initialize();
-        }
-
-        protected override void LoadContent()
-        {
-            sprite_batch = new SpriteBatch(GraphicsDevice);
-        }
-
-        private void UpdateInput(GameTime game_time)
-        {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
-
-            if (Mouse.GetState().RightButton == ButtonState.Pressed && IsActive)
+            if (!startedPanning)
             {
-                if (!started_panning)
-                {
-                    start_mouse_pos = Mouse.GetState().Position;
-                    started_panning = true;
-                }
+                startMousePos = Mouse.GetState().Position;
+                startedPanning = true;
+            }
 
-                Point mouse_diff = Mouse.GetState().Position - start_mouse_pos;
-                Vector2 mouse_diff_v = new Vector2(mouse_diff.X, mouse_diff.Y);
-                camera.Center -= mouse_diff_v / camera.Zoom * 0.4f;
-                Mouse.SetPosition(start_mouse_pos.X, start_mouse_pos.Y);
+            Point mouseDiff = Mouse.GetState().Position - startMousePos;
+            Vector2 mouseDiffV = new Vector2(mouseDiff.X, mouseDiff.Y);
+            camera.Center -= mouseDiffV / camera.Zoom * 0.4f;
+            Mouse.SetPosition(startMousePos.X, startMousePos.Y);
 
-                IsMouseVisible = false;
+            IsMouseVisible = false;
+        }
+        else
+        {
+            startedPanning = false;
+            IsMouseVisible = true;
+        }
+
+        int scrollValue = Mouse.GetState().ScrollWheelValue;
+
+        for (int i = 0; i < scrollValue - previousScrollValue; i++)
+        {
+            if (Keyboard.GetState().IsKeyDown(Keys.LeftShift))
+            {
+                TimeScale *= 1.001f;
             }
             else
             {
-                started_panning = false;
-                IsMouseVisible = true;
-            }
-
-            int scroll_value = Mouse.GetState().ScrollWheelValue;
-
-            for (int i = 0; i < scroll_value - previous_scroll_value; i++)
-            {
                 camera.Zoom *= 1.001f;
             }
+        }
 
-            for (int i = 0; i < previous_scroll_value - scroll_value; i++)
+        for (int i = 0; i < previousScrollValue - scrollValue; i++)
+        {
+            if (Keyboard.GetState().IsKeyDown(Keys.LeftShift))
+            {
+                TimeScale /= 1.001f;
+            }
+            else
             {
                 camera.Zoom /= 1.001f;
             }
-
-            previous_scroll_value = scroll_value;
         }
 
-        private void UpdateEngine(GameTime game_time)
+        if(Keyboard.GetState().IsKeyDown(Keys.LeftShift) && Keyboard.GetState().IsKeyDown(Keys.Enter))
         {
-            engine.Update(game_time.GetElapsedSeconds() * time_scale);
+            TimeScale = 1;
         }
 
-        protected override void Update(GameTime game_time)
+        if(Engine.Input.IsKeyJustPressed(Keys.Delete))
         {
-            UpdateInput(game_time);
-            UpdateEngine(game_time);
-
-            base.Update(game_time);
+            drawOutlines = !drawOutlines;
         }
 
-        private void DrawCircle(Vector2 world_pos, float radius, Color color)
+        previousScrollValue = scrollValue;
+    }
+
+    private void UpdateEngine(GameTime gameTime)
+    {
+        Engine.Update(gameTime.GetElapsedSeconds() * TimeScale);
+    }
+
+    protected override void Update(GameTime gameTime)
+    {
+        UpdateInput(gameTime);
+        UpdateEngine(gameTime);
+
+        base.Update(gameTime);
+    }
+
+    private void DrawCircle(Vector2 worldPos, float radius, Color color, bool filled)
+    {
+        float thickness = filled ? radius * camera.Zoom : radius * camera.Zoom * 0.1f;
+
+        Vector2 pos = camera.TransformToScreen(worldPos, Window.ClientBounds);
+        spriteBatch.DrawCircle(pos, radius * camera.Zoom, 22, color, thickness);
+    }
+
+    private void DrawBody(Body body, Color color)
+    {
+        DrawCircle(body.InterpolatedPosition, body.Radius, color, true);
+            
+        if(body.Radius < 3)
         {
-            Vector2 pos = camera.TransformToScreen(world_pos, Window.ClientBounds);
-            sprite_batch.DrawCircle(pos, radius * camera.Zoom, 22, color, radius * camera.Zoom);
+            //DrawCircle(body.InterpolatedPosition, 3, color, false);
         }
+    }
 
-        protected override void Draw(GameTime gameTime)
+    private void DrawPlanet(Planet planet, Gradient temperatureGradient)
+    {
+        Color color = temperatureGradient.GetColor(planet.Temperature);
+        DrawBody(planet.Body, color);
+            
+        if(planet.Life != null)
         {
-            GraphicsDevice.Clear(Color.Black);
+            Vector2 bottomPos = planet.Body.InterpolatedPosition - new Vector2(0, planet.Body.Radius);
+            Vector2 bottomScreenPos = camera.TransformToScreen(bottomPos, Window.ClientBounds);
+            spriteBatch.DrawString(arial, planet.Life.Population.ToString(), bottomScreenPos - new Vector2(0, -10), Color.White, 0, new(), camera.Zoom, new(), 0);
+            spriteBatch.DrawString(arial, MathF.Round(planet.Temperature).ToString(), bottomScreenPos - new Vector2(0, -40), Color.White, 0, new(), camera.Zoom, new(), 0);
+            spriteBatch.DrawString(arial, planet.Life.RawMaterials.Hydrogen.ToString(), bottomScreenPos - new Vector2(0, -70), Color.White, 0, new(), camera.Zoom, new(), 0);
+        }
+    }
 
-            sprite_batch.Begin();
+    private void DrawStar(Star star)
+    {
+        DrawBody(star.Body, Color.Orange);
+    }
 
-            var bodies = engine.PhysicalObjects.Select(o => o.Body).ToArray();
+    protected override void Draw(GameTime gameTime)
+    {
+        var gradient = new Gradient([new(0, new(0, 0, 1.0f)), new(300, new(0, 1.0f, 0)), new(600, new(1.0f, 0, 0))]);
 
-            foreach (var body in bodies)
+        GraphicsDevice.Clear(Color.Black);
+
+        spriteBatch.Begin();
+
+        foreach (var obj in GameWorld.PhysicalObjects)
+        {
+            if (!camera.GetWorldBounds(Window.ClientBounds).ContainsPoint(obj.InterpolatedPosition)) continue;
+
+            if (obj is Star star)
             {
-                DrawCircle(body.InterpolatedPosition, body.Radius, new Color(0, 0.5f, 0, 0.05f));
+                DrawStar(star);
             }
-
-            foreach(var obj in engine.FindObjectsByName("marker"))
+            else if (obj is Planet planet)
             {
-                var marker = (CollisionMarker)obj;
-                DrawCircle(marker.Position, marker.Radius, new Color(0.5f, 0, 0, 0.05f));
+                DrawPlanet(planet, gradient);
             }
-
-            sprite_batch.End();
-
-            base.Draw(gameTime);
+            else
+            {
+                DrawBody(obj.Body, Color.Yellow);
+            }
         }
+
+        spriteBatch.End();
+
+        base.Draw(gameTime);
     }
 }

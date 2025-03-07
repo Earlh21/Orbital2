@@ -5,10 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Orbital2.Physics.Gravity
+namespace Orbital2.Physics.Gravity;
+
+public abstract class SelectiveGravitySolver : GravitySolver
 {
-    public abstract class SelectiveGravitySolver : GravitySolver
-    {
-        public abstract Vector2[] ComputeAccelerationsSelective(IReadOnlyList<Body> affected_bodies, IReadOnlyList<Body> affector_bodies);
-    }
+    public abstract Vector2[] ComputeAccelerationsSelective(IReadOnlyList<Body> affectedBodies, IReadOnlyList<Body> affectorBodies);
 }

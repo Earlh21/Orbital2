@@ -4,43 +4,55 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Orbital2.Physics;
 
-namespace Orbital2
+namespace Orbital2;
+
+public class Camera
 {
-    internal class Camera
+    public Vector2 Center { get; set; }
+    public float Zoom { get; set; }
+
+    public Camera(Vector2 center, float zoom)
     {
-        public Vector2 Center { get; set; }
-        public float Zoom { get; set; }
+        Center = center;
+        Zoom = zoom;
+    }
 
-        public Camera(Vector2 center, float zoom)
-        {
-            Center = center;
-            Zoom = zoom;
-        }
+    public Camera(float centerX, float centerY, float zoom) : this(new Vector2(centerX, centerY), zoom)
+    {
 
-        public Camera(float center_x, float center_y, float zoom) : this(new Vector2(center_x, center_y), zoom)
-        {
+    }
 
-        }
+    public Bounds GetWorldBounds(Rectangle screenBounds)
+    {
+        float worldWidth = screenBounds.Width / Zoom;
+        float worldHeight = MathF.Abs(screenBounds.Height / Zoom);
 
-        public Vector2 TransformToScreen(Vector2 world_vector, Rectangle screen_bounds)
-        {
-            world_vector = new(world_vector.X, -world_vector.Y);
-            world_vector -= Center;
-            world_vector *= Zoom;
-            world_vector += new Vector2(screen_bounds.Width / 2, screen_bounds.Height / 2);
+        return new Bounds(Center.X - worldWidth / 2, -Center.Y - worldHeight / 2, Center.X + worldWidth / 2, -Center.Y + worldHeight / 2);
+    }
 
-            return new(world_vector.X, world_vector.Y);
-        }
+    public Vector2 TransformToScreen(Vector2 worldVector, Rectangle screenBounds)
+    {
+        worldVector = new(worldVector.X, -worldVector.Y);
+        worldVector -= Center;
+        worldVector *= Zoom;
+        worldVector += new Vector2(screenBounds.Width / 2, screenBounds.Height / 2);
 
+        return new(worldVector.X, worldVector.Y);
+    }
 
-        public Vector2 TransformToWorld(Vector2 point_vector, Rectangle screen_bounds)
-        {
-            point_vector -= new Vector2(screen_bounds.Width / 2, screen_bounds.Height / 2);
-            point_vector /= Zoom;
-            point_vector += new Vector2(Center.X, Center.Y);
+    public Vector2 TransformToWorld(Point point, Rectangle screenBounds)
+    {
+        return TransformToWorld(new Vector2(point.X, point.Y), screenBounds);
+    }
 
-            return new Vector2(point_vector.X, -point_vector.Y);
-        }
+    public Vector2 TransformToWorld(Vector2 pointVector, Rectangle screenBounds)
+    {
+        pointVector -= new Vector2(screenBounds.Width / 2, screenBounds.Height / 2);
+        pointVector /= Zoom;
+        pointVector += new Vector2(Center.X, Center.Y);
+
+        return new Vector2(pointVector.X, -pointVector.Y);
     }
 }
