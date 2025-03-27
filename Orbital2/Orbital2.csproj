@@ -31,6 +31,9 @@
     <PackageReference Include="QuikGraph" Version="2.5.0" />
     <PackageReference Include="TorchSharp" Version="0.102.7" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Shaders\" />
+  </ItemGroup>
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />

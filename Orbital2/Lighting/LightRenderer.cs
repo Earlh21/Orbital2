@@ -153,13 +153,15 @@ public class LightRenderer : IDisposable
         (float angle1, float angle2) =
             ComputeTangentAngles(scene.Light.LightPosition, occluder.LightPosition, occluder.Radius);
 
-        Vector2 tanget1World = ComputeTangentPoint(occluder.LightPosition, occluder.Radius, angle1, 0);
+        Vector2 tangent1World = ComputeTangentPoint(occluder.LightPosition, occluder.Radius, angle1, 0);
         Vector2 tangent2World = ComputeTangentPoint(occluder.LightPosition, occluder.Radius, angle2, 0);
+        Vector2 sourceTangent1World = ComputeTangentPoint(scene.Light.LightPosition, scene.Light.Radius, angle1, 0);
+        Vector2 sourceTangent2World = ComputeTangentPoint(scene.Light.LightPosition, scene.Light.Radius, angle2, 0);
 
-        Vector2 extend1World = ExtendShadowRay(scene.Light.LightPosition, tanget1World, ShadowLength);
-        Vector2 extend2World = ExtendShadowRay(scene.Light.LightPosition, tangent2World, ShadowLength);
+        Vector2 extend1World = ExtendShadowRay(sourceTangent1World, tangent1World, ShadowLength);
+        Vector2 extend2World = ExtendShadowRay(sourceTangent2World, tangent2World, ShadowLength);
 
-        Vector2 tangent1Screen = scene.Camera.TransformToClip(tanget1World, scene.ScreenBounds);
+        Vector2 tangent1Screen = scene.Camera.TransformToClip(tangent1World, scene.ScreenBounds);
         Vector2 tangent2Screen = scene.Camera.TransformToClip(tangent2World, scene.ScreenBounds);
         Vector2 extend1Screen = scene.Camera.TransformToClip(extend1World, scene.ScreenBounds);
         Vector2 extend2Screen = scene.Camera.TransformToClip(extend2World, scene.ScreenBounds);
@@ -172,22 +174,19 @@ public class LightRenderer : IDisposable
 
         hardVertexOffset += 4;
         
-        Vector2 sourceTangent1World = ComputeTangentPoint(scene.Light.LightPosition, scene.Light.Radius, angle1, 0);
-        Vector2 sourceTangent2World = ComputeTangentPoint(scene.Light.LightPosition, scene.Light.Radius, angle2, 0);
-        
-        Vector2 softExtend1World = ExtendShadowRay(sourceTangent2World, tanget1World, ShadowLength);
+        Vector2 softExtend1World = ExtendShadowRay(sourceTangent2World, tangent1World, ShadowLength);
         Vector2 softExtend2World = ExtendShadowRay(sourceTangent1World, tangent2World, ShadowLength);
         
         Vector2 softExtend1Screen = scene.Camera.TransformToClip(softExtend1World, scene.ScreenBounds);
         Vector2 softExtend2Screen = scene.Camera.TransformToClip(softExtend2World, scene.ScreenBounds);
         
-        softVertices[softVertexOffset] = new(new(softExtend1Screen, 0f), Color.Transparent);
-        softVertices[softVertexOffset + 1] = new(new(extend1Screen, 0f), Color.Black);
-        softVertices[softVertexOffset + 2] = new(new(tangent1Screen, 0f), Color.Black);
+        softVertices[softVertexOffset] = new(new(softExtend1Screen, 0f), Color.Gray);
+        softVertices[softVertexOffset + 1] = new(new(extend1Screen, 0f), Color.Gray);
+        softVertices[softVertexOffset + 2] = new(new(tangent1Screen, 0f), Color.Gray);
         
-        softVertices[softVertexOffset + 3] = new(new(softExtend2Screen, 0f), Color.Transparent);
-        softVertices[softVertexOffset + 4] = new(new(extend2Screen, 0f), Color.Black);
-        softVertices[softVertexOffset + 5] = new(new(tangent2Screen, 0f), Color.Black);
+        softVertices[softVertexOffset + 3] = new(new(softExtend2Screen, 0f), Color.Gray);
+        softVertices[softVertexOffset + 4] = new(new(extend2Screen, 0f), Color.Gray);
+        softVertices[softVertexOffset + 5] = new(new(tangent2Screen, 0f), Color.Gray);
         
         softVertexOffset += 6;
     }
