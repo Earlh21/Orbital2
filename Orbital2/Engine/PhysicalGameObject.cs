@@ -19,6 +19,7 @@ public abstract class PhysicalGameObject : GameObject, ILightingOccluder
     public Vector2 Velocity => Body.Velocity;
     public float Mass => Body.Mass;
     public float Radius => Body.Radius;
+    public Vector2 LightPosition => Body.InterpolatedPosition;
 
     public PhysicalGameObject(Body body)
     {

@@ -44,8 +44,6 @@ public class Orbital : Microsoft.Xna.Framework.Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
-        
-        Window.ClientSizeChanged += (_, _) => lightRenderer.ResizeRenderTarget(Window.ClientBounds.Width, Window.ClientBounds.Height);
     }
 
     //TODO: SPH on collisions wouldn't actually be that hard to implement, especially if I'm aiming for a low planet count
@@ -53,8 +51,14 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         base.Initialize();
         arial = Content.Load<SpriteFont>("arial");
+        
+        GraphicsDevice.RasterizerState = new()
+        {
+            CullMode = CullMode.None
+        };
+        
         lightRenderer = new(GraphicsDevice);
-        lightRenderer.CreatePixelTexture();
+        
     }
 
     protected override void LoadContent()
@@ -210,10 +214,9 @@ public class Orbital : Microsoft.Xna.Framework.Game
         var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
         if (star == null) return;
         
-        var occluders = GameWorld.GameObjects.Where(o => o is ILightingOccluder).Cast<ILightingOccluder>().ToHashSet();
+        var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().ToList();
         occluders.Remove(star);
         
-        //lightRenderer.DrawLightSourceVisual(star, camera, Window.ClientBounds);
         lightRenderer.DrawShadows(star, occluders, camera, Window.ClientBounds);
     }
 

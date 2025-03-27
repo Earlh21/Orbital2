@@ -3,70 +3,32 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using TorchSharp.Modules;
 
 namespace Orbital2.Lighting;
 
 public class LightRenderer : IDisposable
 {
+    public float ShadowLength { get; set; } = 100000f;
+
     private readonly GraphicsDevice graphicsDevice;
     private readonly SpriteBatch spriteBatch;
     private readonly BasicEffect basicEffect;
-    private RenderTarget2D shadowMapRenderTarget;
     private bool disposed;
-
-    // A very large number to project shadow edges far away
-    private const float ShadowLength = 100000f;
 
     public LightRenderer(GraphicsDevice graphicsDevice)
     {
         this.graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
-        spriteBatch = new SpriteBatch(graphicsDevice);
+        spriteBatch = new(graphicsDevice);
 
-        basicEffect = new BasicEffect(graphicsDevice)
+        basicEffect = new(graphicsDevice)
         {
             VertexColorEnabled = true,
-            TextureEnabled = false, // We are drawing solid colors
-            // World, View, Projection will be set in Draw
+            TextureEnabled = false,
+            World = Matrix.Identity,
+            View = Matrix.Identity,
+            Projection = Matrix.Identity
         };
-
-        // Initialize RenderTarget (size will be set later if needed, or on first draw)
-        // For simplicity, let's create it with the current back buffer size.
-        // It should ideally be resized if the screen size changes.
-        var pp = graphicsDevice.PresentationParameters;
-        shadowMapRenderTarget = new RenderTarget2D(
-            graphicsDevice,
-            pp.BackBufferWidth,
-            pp.BackBufferHeight,
-            false, // No mipmap
-            graphicsDevice.PresentationParameters.BackBufferFormat, // Match back buffer format
-            DepthFormat.None, // No depth needed for 2D shadows
-            0, // No multisampling
-            RenderTargetUsage.DiscardContents // Contents are redrawn each frame
-        );
-    }
-
-    // Call this if the screen resolution changes to resize the render target
-    public void ResizeRenderTarget(int width, int height)
-    {
-        shadowMapRenderTarget?.Dispose();
-        shadowMapRenderTarget = new RenderTarget2D(
-            graphicsDevice,
-            width,
-            height,
-            false,
-            graphicsDevice.PresentationParameters.BackBufferFormat,
-            DepthFormat.None,
-            0,
-            RenderTargetUsage.DiscardContents
-        );
-    }
-
-    private bool ShouldSkipOccluder(Vector2 lightPos, Vector2 occluderPos, float occluderRadius)
-    {
-        Vector2 delta = occluderPos - lightPos;
-        float distSq = delta.LengthSquared();
-        float radiusSq = occluderRadius * occluderRadius;
-        return distSq <= radiusSq;
     }
 
     private (float angle1, float angle2) ComputeTangentAngles(Vector2 lightPos, Vector2 occluderPos,
@@ -95,124 +57,94 @@ public class LightRenderer : IDisposable
         return lightPos + dir * shadowLength;
     }
 
-    private void DrawScreenPolygon(
-        Vector2 v1,
-        Vector2 v2,
-        Vector2 v3,
-        Vector2 v4,
-        Color color)
+    private void DrawQuads(VertexPositionColor[] vertices, Color color)
     {
-        VertexPositionColor[] vertices = new VertexPositionColor[4];
-        vertices[0] = new VertexPositionColor(new Vector3(v1, 0f), color);
-        vertices[1] = new VertexPositionColor(new Vector3(v2, 0f), color);
-        vertices[2] = new VertexPositionColor(new Vector3(v3, 0f), color);
-        vertices[3] = new VertexPositionColor(new Vector3(v4, 0f), color);
+        basicEffect.CurrentTechnique.Passes[0].Apply();
+        
+        graphicsDevice.RasterizerState = new()
+        {
+            CullMode = CullMode.None
+        };
 
-        short[] indices = [0, 2, 1, 1, 2, 3];
+        if (vertices.Length % 4 != 0)
+            throw new ArgumentException("Vertices array must have a multiple of 4 elements", nameof(vertices));
+
+        var indices = new short[vertices.Length / 4 * 6];
+
+        for (int i = 0; i < indices.Length; i += 6)
+        {
+            short vOffset = (short)(i / 6 * 4);
+            indices[i] = vOffset;
+            indices[i + 1] = (short)(vOffset + 1);
+            indices[i + 2] = (short)(vOffset + 2);
+            indices[i + 3] = (short)(vOffset + 1);
+            indices[i + 4] = (short)(vOffset + 2);
+            indices[i + 5] = (short)(vOffset + 3);
+        }
 
         graphicsDevice.DrawUserIndexedPrimitives(
             PrimitiveType.TriangleList,
             vertices,
             0,
-            4,
+            vertices.Length,
             indices,
             0,
-            2
+            vertices.Length / 2
         );
     }
 
-    private void DrawShadowForOccluder(
-        Camera camera,
-        Rectangle screenBounds,
-        ILight light,
-        ILightingOccluder occluder,
-        float shadowLength,
-        Color color)
-    {
-        //if (ShouldSkipOccluder(light.Position, occluder.Position, occluder.Radius))
-            //return;
-
-        (float angle1, float angle2) = ComputeTangentAngles(light.Position, occluder.Position, occluder.Radius);
-
-        float angleCenterToT1 = angle1 + MathF.PI * 0.5f;
-        float angleCenterToT2 = angle2 - MathF.PI * 0.5f;
-
-        Vector2 t1World = ComputeTangentPoint(occluder.Position, occluder.Radius, angle1, angleCenterToT1);
-        Vector2 t2World = ComputeTangentPoint(occluder.Position, occluder.Radius, angle2, angleCenterToT2);
-
-        Vector2 p1World = ExtendShadowRay(light.Position, t1World, shadowLength);
-        Vector2 p2World = ExtendShadowRay(light.Position, t2World, shadowLength);
-
-        Vector2 t1Screen = camera.TransformToClip(t1World, screenBounds);
-        Vector2 t2Screen = camera.TransformToClip(t2World, screenBounds);
-        Vector2 p1Screen = camera.TransformToClip(p1World, screenBounds);
-        Vector2 p2Screen = camera.TransformToClip(p2World, screenBounds);
-
-        DrawScreenPolygon(t1Screen, t2Screen, p1Screen, p2Screen, color);
-    }
+    private record struct SceneInfo(
+        ILight Light,
+        Camera Camera,
+        Rectangle ScreenBounds);
 
     public void DrawShadows(
         ILight light,
         IEnumerable<ILightingOccluder> occluders,
         Camera camera,
-        Rectangle screenBounds,
-        float shadowLength = 10000.0f)
+        Rectangle screenBounds)
     {
-        // Set up BasicEffect for rendering in screen space
-        basicEffect.Projection = Matrix.Identity;
-        basicEffect.View = Matrix.Identity;
-        basicEffect.World = Matrix.Identity;
+        var sceneInfo = new SceneInfo(light, camera, screenBounds);
 
-        // Apply the effect
-        //basicEffect.CurrentTechnique.Passes[0].Apply();
-        
+        VertexPositionColor[] vertices = new VertexPositionColor[occluders.Count() * 4];
+        int vertexOffset = 0;
+
         foreach (var occluder in occluders)
         {
-            DrawShadowForOccluder(
-                camera,
-                screenBounds,
-                light,
-                occluder,
-                shadowLength,
-                Color.Black
-            );
+            AddShadowVertices(sceneInfo, occluder, vertices, ref vertexOffset);
         }
+
+        if (vertexOffset == 0) return;
+
+        DrawQuads(vertices, Color.Black);
     }
 
-
-    // --- Optional: Draw the Light Source Itself ---
-    // You might want a separate method or integrate this elsewhere
-
-    // Example: Draw a simple representation of the light source
-    // Requires a 1x1 white pixel texture. Create this in LoadContent.
-    private Texture2D? pixelTexture;
-
-    public void CreatePixelTexture() // Call this after GraphicsDevice is ready
+    private void AddShadowVertices(
+        SceneInfo scene,
+        ILightingOccluder occluder,
+        VertexPositionColor[] vertices,
+        ref int vertexOffset)
     {
-        pixelTexture?.Dispose();
-        pixelTexture = new Texture2D(graphicsDevice, 1, 1);
-        pixelTexture.SetData(new[] { Color.White });
-    }
+        (float angle1, float angle2) = ComputeTangentAngles(scene.Light.LightPosition, occluder.LightPosition, occluder.Radius);
 
-    public void DrawLightSourceVisual(ILight light, Camera camera, Rectangle screenBounds)
-    {
-        if (pixelTexture == null) CreatePixelTexture(); // Ensure pixel exists
+        Vector2 t1World = ComputeTangentPoint(occluder.LightPosition, occluder.Radius, angle1, 0);
+        Vector2 t2World = ComputeTangentPoint(occluder.LightPosition, occluder.Radius, angle2, 0);
 
-        Vector2 lightScreenPos = camera.TransformToClip(light.Position, screenBounds);
-        float lightScreenRadius = 10; // Example fixed screen size for the light representation
+        Vector2 p1World = ExtendShadowRay(scene.Light.LightPosition, t1World, ShadowLength);
+        Vector2 p2World = ExtendShadowRay(scene.Light.LightPosition, t2World, ShadowLength);
 
-        spriteBatch.Begin();
-        spriteBatch.Draw(
-            pixelTexture,
-            new Rectangle(
-                (int)(lightScreenPos.X - lightScreenRadius),
-                (int)(lightScreenPos.Y - lightScreenRadius),
-                (int)(lightScreenRadius * 2),
-                (int)(lightScreenRadius * 2)
-            ),
-            Color.Yellow * light.Intensity // Use intensity to modulate brightness/color
-        );
-        spriteBatch.End();
+        Vector2 t1Screen = scene.Camera.TransformToClip(t1World, scene.ScreenBounds);
+        Vector2 t2Screen = scene.Camera.TransformToClip(t2World, scene.ScreenBounds);
+        Vector2 p1Screen = scene.Camera.TransformToClip(p1World, scene.ScreenBounds);
+        Vector2 p2Screen = scene.Camera.TransformToClip(p2World, scene.ScreenBounds);
+
+        // Add vertices for this shadow quad
+        vertices[vertexOffset] = new(new(t1Screen, 0f), Color.Black);
+        vertices[vertexOffset + 1] = new(new(t2Screen, 0f), Color.Black);
+        vertices[vertexOffset + 2] = new(new(p1Screen, 0f), Color.Black);
+        vertices[vertexOffset + 3] = new(new(p2Screen, 0f), Color.Black);
+
+        vertexOffset += 4;
     }
 
     // --- IDisposable Implementation ---
@@ -232,8 +164,6 @@ public class LightRenderer : IDisposable
                 // Dispose managed resources
                 spriteBatch?.Dispose();
                 basicEffect?.Dispose();
-                shadowMapRenderTarget?.Dispose();
-                pixelTexture?.Dispose(); // Dispose the optional pixel texture
             }
             // Dispose unmanaged resources here if any
 

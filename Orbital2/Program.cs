@@ -159,10 +159,10 @@ void RunGame()
 {
     const int numPlanets = 30;
 
-    const float maxDistance = 1000;
-    const float minDistance = 200;
-    const float maxMass = 100;
-    const float minMass = 20;
+    const float maxDistance = 400;
+    const float minDistance = 100;
+    const float maxMass = 500;
+    const float minMass = 100;
 
     const float starMass = 200000;
     
@@ -177,7 +177,7 @@ void RunGame()
     game.GameWorld.AddObject(starObject);
     game.GameWorld.AddObjects(planetObjects);
     
-    //game.GameWorld.AddObject(new Planet(new(new(-300, 0), new() { Hydrogen = 2000f })));
+    //game.GameWorld.AddObject(new Planet(new(new(0, 200), new() { Hydrogen = 2000f })));
 
     game.Run();
 }

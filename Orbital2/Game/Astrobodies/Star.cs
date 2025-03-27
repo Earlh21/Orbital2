@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using Orbital2.Game.Base;
 using Orbital2.Lighting;
 
@@ -14,6 +15,7 @@ public class Star : PhysicalGameObject, ILight
 {
     public const float RadianceConstant = 20000f;
     public float Intensity => 100000000;
+    public Vector2 LightPosition => Body.InterpolatedPosition;
 
     public Star(Body body) : base(body)
     {
