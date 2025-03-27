@@ -173,11 +173,11 @@ void RunGame()
     var starObject = new Star(star);
     var planetObjects = planets.Select(x => new Planet(x)).ToArray();
 
-    game.GameWorld.AddObject(gravityObject);
+    //game.GameWorld.AddObject(gravityObject);
     game.GameWorld.AddObject(starObject);
-    game.GameWorld.AddObjects(planetObjects);
+    //game.GameWorld.AddObjects(planetObjects);
     
-    //game.GameWorld.AddObject(new Planet(new(new(0, 200), new() { Hydrogen = 2000f })));
+    game.GameWorld.AddObject(new Planet(new(new(0, 120), new() { Hydrogen = 2000f })));
 
     game.Run();
 }
