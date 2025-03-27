@@ -6,4 +6,5 @@ public interface ILight
 {
     public Vector2 LightPosition { get; }
     public float Intensity { get; }
+    public float Radius { get; }
 }
