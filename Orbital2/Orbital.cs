@@ -14,6 +14,7 @@ using Orbital2.Engine;
 using Orbital2.Game;
 using Orbital2.Game.Astrobodies;
 using MonoGame.Extended.Collections;
+using Orbital2.Lighting;
 
 namespace Orbital2;
 
@@ -29,6 +30,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
     private SpriteFont arial;
 
     private Camera camera = new(0, 0, 10);
+    private LightRenderer? lightRenderer;
 
     private bool startedPanning = false;
     private int previousScrollValue = 0;
@@ -42,13 +44,17 @@ public class Orbital : Microsoft.Xna.Framework.Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
+        
+        Window.ClientSizeChanged += (_, _) => lightRenderer.ResizeRenderTarget(Window.ClientBounds.Width, Window.ClientBounds.Height);
     }
 
     //TODO: SPH on collisions wouldn't actually be that hard to implement, especially if I'm aiming for a low planet count
     protected override void Initialize()
     {
-        arial = Content.Load<SpriteFont>("arial");
         base.Initialize();
+        arial = Content.Load<SpriteFont>("arial");
+        lightRenderer = new(GraphicsDevice);
+        lightRenderer.CreatePixelTexture();
     }
 
     protected override void LoadContent()
@@ -171,16 +177,14 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         DrawBody(star.Body, Color.Orange);
     }
-
-    protected override void Draw(GameTime gameTime)
+    
+    private void DrawObjects(IEnumerable<PhysicalGameObject> objects)
     {
         var gradient = new Gradient([new(0, new(0, 0, 1.0f)), new(300, new(0, 1.0f, 0)), new(600, new(1.0f, 0, 0))]);
-
-        GraphicsDevice.Clear(Color.Black);
-
+        
         spriteBatch.Begin();
-
-        foreach (var obj in GameWorld.PhysicalObjects)
+        
+        foreach (var obj in objects)
         {
             if (!camera.GetWorldBounds(Window.ClientBounds).ContainsPoint(obj.InterpolatedPosition)) continue;
 
@@ -199,6 +203,30 @@ public class Orbital : Microsoft.Xna.Framework.Game
         }
 
         spriteBatch.End();
+    }
+
+    private void DrawLighting(LightRenderer lightRenderer)
+    {
+        var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
+        if (star == null) return;
+        
+        var occluders = GameWorld.GameObjects.Where(o => o is ILightingOccluder).Cast<ILightingOccluder>().ToHashSet();
+        occluders.Remove(star);
+        
+        //lightRenderer.DrawLightSourceVisual(star, camera, Window.ClientBounds);
+        lightRenderer.DrawShadows(star, occluders, camera, Window.ClientBounds);
+    }
+
+    protected override void Draw(GameTime gameTime)
+    {
+        GraphicsDevice.Clear(Color.White);
+        
+        if(lightRenderer != null)
+        {
+            DrawLighting(lightRenderer);
+        }
+
+        DrawObjects(GameWorld.PhysicalObjects);
 
         base.Draw(gameTime);
     }

@@ -6,12 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Orbital2.Game.Base;
+using Orbital2.Lighting;
 
 namespace Orbital2.Game.Astrobodies;
 
-public class Star : PhysicalGameObject
+public class Star : PhysicalGameObject, ILight
 {
     public const float RadianceConstant = 20000f;
+    public float Intensity => 100000000;
 
     public Star(Body body) : base(body)
     {

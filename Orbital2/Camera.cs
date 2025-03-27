@@ -37,9 +37,22 @@ public class Camera
         worldVector = new(worldVector.X, -worldVector.Y);
         worldVector -= Center;
         worldVector *= Zoom;
-        worldVector += new Vector2(screenBounds.Width / 2, screenBounds.Height / 2);
+        worldVector += new Vector2(screenBounds.Width / 2.0f, screenBounds.Height / 2.0f);
 
         return new(worldVector.X, worldVector.Y);
+    }
+    
+    public Vector2 TransformToClip(Vector2 worldVector, Rectangle screenBounds)
+    {
+        var screenVector = TransformToScreen(worldVector, screenBounds);
+        
+        screenVector.X -= screenBounds.Width / 2.0f;
+        screenVector.Y -= screenBounds.Height / 2.0f;
+        
+        screenVector.X /= screenBounds.Width / 2.0f;
+        screenVector.Y /= -screenBounds.Height / 2.0f;
+
+        return screenVector;
     }
 
     public Vector2 TransformToWorld(Point point, Rectangle screenBounds)
@@ -49,7 +62,7 @@ public class Camera
 
     public Vector2 TransformToWorld(Vector2 pointVector, Rectangle screenBounds)
     {
-        pointVector -= new Vector2(screenBounds.Width / 2, screenBounds.Height / 2);
+        pointVector -= new Vector2(screenBounds.Width / 2.0f, screenBounds.Height / 2.0f);
         pointVector /= Zoom;
         pointVector += new Vector2(Center.X, Center.Y);
 

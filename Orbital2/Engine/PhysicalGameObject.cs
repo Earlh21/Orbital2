@@ -5,10 +5,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Orbital2.Lighting;
 
 namespace Orbital2.Engine;
 
-public abstract class PhysicalGameObject : GameObject
+public abstract class PhysicalGameObject : GameObject, ILightingOccluder
 {
     public Body Body { get; }
     public Vector2 InterpolatedPosition => Body.InterpolatedPosition;
