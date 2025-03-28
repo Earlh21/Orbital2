@@ -224,12 +224,12 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         GraphicsDevice.Clear(Color.White);
         
-        DrawObjects(GameWorld.PhysicalObjects);
         if(lightRenderer != null)
         {
             DrawLighting(lightRenderer);
         }
 
+        DrawObjects(GameWorld.PhysicalObjects);
 
         base.Draw(gameTime);
     }

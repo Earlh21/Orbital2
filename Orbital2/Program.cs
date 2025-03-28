@@ -157,9 +157,9 @@ void RunTest()
 
 void RunGame()
 {
-    const int numPlanets = 30;
+    const int numPlanets = 1000;
 
-    const float maxDistance = 400;
+    const float maxDistance = 10000;
     const float minDistance = 100;
     const float maxMass = 500;
     const float minMass = 100;
@@ -173,11 +173,11 @@ void RunGame()
     var starObject = new Star(star);
     var planetObjects = planets.Select(x => new Planet(x)).ToArray();
 
-    //game.GameWorld.AddObject(gravityObject);
+    game.GameWorld.AddObject(gravityObject);
     game.GameWorld.AddObject(starObject);
-    //game.GameWorld.AddObjects(planetObjects);
+    game.GameWorld.AddObjects(planetObjects);
     
-    game.GameWorld.AddObject(new Planet(new(new(0, 120), new() { Hydrogen = 2000f })));
+    //game.GameWorld.AddObject(new Planet(new(new(0, 120), new() { Hydrogen = 2000f })));
 
     game.Run();
 }
