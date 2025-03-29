@@ -51,13 +51,16 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         base.Initialize();
         arial = Content.Load<SpriteFont>("arial");
+        var lineDistanceEffect = Content.Load<Effect>("Shaders/linedistance");
+        var pointDistanceEffect = Content.Load<Effect>("Shaders/pointdistance");
+        var occlusionShadowEffect = Content.Load<Effect>("Shaders/occlusionshadow");
         
         GraphicsDevice.RasterizerState = new()
         {
             CullMode = CullMode.None
         };
         
-        lightRenderer = new(GraphicsDevice);
+        lightRenderer = new(GraphicsDevice, lineDistanceEffect, pointDistanceEffect, occlusionShadowEffect);
         
     }
 
@@ -179,7 +182,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
 
     private void DrawStar(Star star)
     {
-        DrawBody(star.Body, Color.Orange);
+        DrawBody(star.Body, Color.OrangeRed);
     }
     
     private void DrawObjects(IEnumerable<PhysicalGameObject> objects)
@@ -217,12 +220,13 @@ public class Orbital : Microsoft.Xna.Framework.Game
         var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().ToList();
         occluders.Remove(star);
         
-        lightRenderer.DrawShadows(star, occluders, camera, Window.ClientBounds);
+        lightRenderer.DrawLight(star, camera);
+        lightRenderer.DrawShadows(star, occluders, camera);
     }
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.White);
+        GraphicsDevice.Clear(Color.Black);
         
         if(lightRenderer != null)
         {

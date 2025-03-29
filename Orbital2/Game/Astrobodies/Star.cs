@@ -14,8 +14,9 @@ namespace Orbital2.Game.Astrobodies;
 public class Star : PhysicalGameObject, ILight
 {
     public const float RadianceConstant = 20000f;
-    public float Intensity => 100000000;
-    public Vector2 LightPosition => Body.InterpolatedPosition;
+    public float LightRadius => Radius;
+    public Color Lightcolor => Color.Orange;
+    public float LightIntensity => 10000f;
 
     public Star(Body body) : base(body)
     {

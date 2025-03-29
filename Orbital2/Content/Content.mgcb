@@ -20,3 +20,21 @@
 /processorParam:TextureFormat=Compressed
 /build:File.spritefont;arial.spritefont
 
+#begin Shaders/linedistance.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Shaders/linedistance.fx
+
+#begin Shaders/occlusionshadow.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Shaders/occlusionshadow.fx
+
+#begin Shaders/pointdistance.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Shaders/pointdistance.fx
+

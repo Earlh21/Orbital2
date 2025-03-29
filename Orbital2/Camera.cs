@@ -54,6 +54,27 @@ public class Camera
 
         return screenVector;
     }
+    
+    public Matrix GetViewMatrix(Rectangle screenBounds)
+    {
+        return
+            Matrix.CreateTranslation(-Center.X, Center.Y, 0f)
+            * Matrix.CreateScale(
+                2f * Zoom / screenBounds.Width,
+                2f * Zoom / screenBounds.Height,
+                1f
+            );
+    }
+
+    public Matrix GetInverseViewMatrix(Rectangle screenBounds)
+    {
+        return Matrix.CreateScale(
+                screenBounds.Width / 2f / Zoom,
+                screenBounds.Height / 2f / Zoom,
+                1f
+            )
+            * Matrix.CreateTranslation(Center.X, -Center.Y, 0f);
+    }
 
     public Vector2 TransformToWorld(Point point, Rectangle screenBounds)
     {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Orbital2.Engine.Graphics;
 using TorchSharp.Modules;
 
 namespace Orbital2.Lighting;
@@ -12,11 +13,15 @@ public class LightRenderer : IDisposable
     public float ShadowLength { get; set; } = 1000000f;
 
     private readonly GraphicsDevice graphicsDevice;
+    private readonly DrawHelper drawHelper;
     private readonly SpriteBatch spriteBatch;
     private readonly BasicEffect basicEffect;
+    private readonly Effect lineDistanceEffect;
+    private readonly Effect pointDistanceEffect;
+    private readonly Effect occlusionShadowEffect;
     private bool disposed;
 
-    public LightRenderer(GraphicsDevice graphicsDevice)
+    public LightRenderer(GraphicsDevice graphicsDevice, Effect lineDistanceEffect, Effect pointDistanceEffect, Effect occlusionShadowEffect)
     {
         this.graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         spriteBatch = new(graphicsDevice);
@@ -29,6 +34,12 @@ public class LightRenderer : IDisposable
             View = Matrix.Identity,
             Projection = Matrix.Identity
         };
+
+        this.lineDistanceEffect = lineDistanceEffect;
+        this.pointDistanceEffect = pointDistanceEffect;
+        this.occlusionShadowEffect = occlusionShadowEffect;
+
+        drawHelper = new(this.graphicsDevice);
     }
 
     private Vector2 ExtendShadowRay(Vector2 rayStart, Vector2 rayEnd, float shadowLength)
@@ -44,97 +55,33 @@ public class LightRenderer : IDisposable
         return rayStart + dir * shadowLength;
     }
 
-    private void DrawTriangles(VertexPositionColor[] vertices)
+    private record struct SceneInfo(ILight Light, Camera Camera, Rectangle ScreenBounds);
+
+    public void DrawLight(ILight light,
+        Camera camera)
     {
-        if (vertices.Length == 0) return;
-
-        basicEffect.CurrentTechnique.Passes[0].Apply();
-
-        graphicsDevice.RasterizerState = RasterizerState.CullNone;
-
-        if (vertices.Length % 3 != 0)
-            throw new ArgumentException("Vertices array must have a multiple of 3 elements", nameof(vertices));
-
-        int triangleCount = vertices.Length / 3;
-        if (triangleCount > 0)
-        {
-            graphicsDevice.DrawUserPrimitives(
-                PrimitiveType.TriangleList,
-                vertices,
-                0,
-                triangleCount
-            );
-        }
+        pointDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
+        pointDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
+        pointDistanceEffect.Parameters["source"].SetValue(light.LightPosition);
+        pointDistanceEffect.Parameters["maxDistance"].SetValue(light.LightIntensity);
+        pointDistanceEffect.Parameters["sourceColor"].SetValue(light.Lightcolor.ToVector4());
+        
+        drawHelper.DrawScreen(camera, pointDistanceEffect, BlendState.Additive);
     }
-
-    private void DrawQuads(VertexPositionColor[] vertices)
-    {
-        if (vertices == null || vertices.Length == 0) return;
-
-        basicEffect.CurrentTechnique.Passes[0].Apply();
-
-        graphicsDevice.RasterizerState = RasterizerState.CullNone;
-
-        if (vertices.Length % 4 != 0)
-            throw new ArgumentException("Vertices array must have a multiple of 4 elements", nameof(vertices));
-
-        int quadCount = vertices.Length / 4;
-        if (quadCount == 0) return;
-
-        var indices = new short[quadCount * 6];
-        for (int i = 0; i < quadCount; ++i)
-        {
-            short vOffset = (short)(i * 4);
-            int indexOffset = i * 6;
-            indices[indexOffset + 0] = vOffset;
-            indices[indexOffset + 1] = (short)(vOffset + 1);
-            indices[indexOffset + 2] = (short)(vOffset + 2);
-            indices[indexOffset + 3] = (short)(vOffset + 1);
-            indices[indexOffset + 4] = (short)(vOffset + 3);
-            indices[indexOffset + 5] = (short)(vOffset + 2);
-        }
-
-        graphicsDevice.DrawUserIndexedPrimitives(
-            PrimitiveType.TriangleList,
-            vertices,
-            0,
-            vertices.Length,
-            indices,
-            0,
-            quadCount * 2
-        );
-    }
-
-
-    private record struct SceneInfo(
-        ILight Light,
-        Camera Camera,
-        Rectangle ScreenBounds);
-
+    
     public void DrawShadows(
         ILight light,
         IEnumerable<ILightingOccluder> occluders,
-        Camera camera,
-        Rectangle screenBounds)
+        Camera camera)
     {
-        var sceneInfo = new SceneInfo(light, camera, screenBounds);
-
-        List<VertexPositionColor> triangleVertices = [];
-        List<VertexPositionColor> quadVertices = [];
-
+        basicEffect.View = camera.GetViewMatrix(graphicsDevice.Viewport.Bounds);
+        lineDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
+        
+        var sceneInfo = new SceneInfo(light, camera, graphicsDevice.Viewport.Bounds);
+        
         foreach (var occluder in occluders)
         {
-            AddShadowVertices(sceneInfo, occluder, triangleVertices, quadVertices);
-        }
-
-        if (triangleVertices.Count > 0)
-        {
-            DrawTriangles(triangleVertices.ToArray());
-        }
-
-        if (quadVertices.Count > 0)
-        {
-            DrawQuads(quadVertices.ToArray());
+            DrawShadow(sceneInfo, occluder);
         }
     }
 
@@ -164,11 +111,9 @@ public class LightRenderer : IDisposable
         return null;
     }
 
-    private void AddShadowVertices(
+    private void DrawShadow(
         SceneInfo scene,
-        ILightingOccluder occluder,
-        List<VertexPositionColor> triangles,
-        List<VertexPositionColor> quads)
+        ILightingOccluder occluder)
     {
         Vector2 exTanLeftLi;
         Vector2 exTanRightLi;
@@ -186,7 +131,7 @@ public class LightRenderer : IDisposable
         float d = dVec.Length();
         if (d < float.Epsilon) return;
         float theta = (float)Math.Atan2(dVec.Y, dVec.X);
-        float r1 = scene.Light.Radius;
+        float r1 = scene.Light.LightRadius;
         float r2 = occluder.Radius;
 
         Func<Vector2, Vector2> TransformLocal = local =>
@@ -199,18 +144,18 @@ public class LightRenderer : IDisposable
 // External tangents (K = r1 - r2)
         float K_ext = r1 - r2;
         float sqrt_ext = (float)Math.Sqrt(d * d - K_ext * K_ext);
-        Vector2 local_exTanLeftLi = new Vector2((r1 * K_ext) / d, (r1 * sqrt_ext) / d);
-        Vector2 local_exTanRightLi = new Vector2((r1 * K_ext) / d, -(r1 * sqrt_ext) / d);
-        Vector2 local_exTanLeftOc = new Vector2(d + (r2 * K_ext) / d, (r2 * sqrt_ext) / d);
-        Vector2 local_exTanRightOc = new Vector2(d + (r2 * K_ext) / d, -(r2 * sqrt_ext) / d);
+        Vector2 local_exTanLeftLi = new((r1 * K_ext) / d, (r1 * sqrt_ext) / d);
+        Vector2 local_exTanRightLi = new((r1 * K_ext) / d, -(r1 * sqrt_ext) / d);
+        Vector2 local_exTanLeftOc = new(d + (r2 * K_ext) / d, (r2 * sqrt_ext) / d);
+        Vector2 local_exTanRightOc = new(d + (r2 * K_ext) / d, -(r2 * sqrt_ext) / d);
 
 // Internal tangents (K = r1 + r2)
         float K_int = r1 + r2;
         float sqrt_int = (float)Math.Sqrt(d * d - K_int * K_int);
-        Vector2 local_inTanLeftLi = new Vector2((r1 * K_int) / d, (r1 * sqrt_int) / d);
-        Vector2 local_inTanRightLi = new Vector2((r1 * K_int) / d, -(r1 * sqrt_int) / d);
-        Vector2 local_inTanRightOc = new Vector2(d - (r2 * K_int) / d, -(r2 * sqrt_int) / d);
-        Vector2 local_inTanLeftOc = new Vector2(d - (r2 * K_int) / d, (r2 * sqrt_int) / d);
+        Vector2 local_inTanLeftLi = new((r1 * K_int) / d, (r1 * sqrt_int) / d);
+        Vector2 local_inTanRightLi = new((r1 * K_int) / d, -(r1 * sqrt_int) / d);
+        Vector2 local_inTanRightOc = new(d - (r2 * K_int) / d, -(r2 * sqrt_int) / d);
+        Vector2 local_inTanLeftOc = new(d - (r2 * K_int) / d, (r2 * sqrt_int) / d);
 
         exTanLeftLi = TransformLocal(local_exTanLeftLi);
         exTanRightLi = TransformLocal(local_exTanRightLi);
@@ -232,45 +177,57 @@ public class LightRenderer : IDisposable
 
         Vector2 rightSplitterEnd = ExtendShadowRay(inTanLeftLi, exTanRightOc, ShadowLength);
         Vector2 leftSplitterEnd = ExtendShadowRay(inTanRightLi, exTanLeftOc, ShadowLength);
+
+        List<VertexPositionColor> quads = [];
+        List<VertexPositionColor> hardTriangles = [];
+        List<VertexPositionColor> softTriangles = [];
         
         quads.Add(ConvertVector(exTanLeftOc, scene));
         quads.Add(ConvertVector(umbraIntersect.Value, scene));
         quads.Add(ConvertVector(leftSplitterEnd, scene));
         quads.Add(ConvertVector(exTanRightEnd, scene));
-        
+
         quads.Add(ConvertVector(umbraIntersect.Value, scene));
         quads.Add(ConvertVector(exTanRightOc, scene));
         quads.Add(ConvertVector(exTanLeftEnd, scene));
         quads.Add(ConvertVector(rightSplitterEnd, scene));
-        
-        triangles.Add(ConvertVector(exTanRightOc, scene));
-        triangles.Add(ConvertVector(exTanLeftOc, scene));
-        triangles.Add(ConvertVector(umbraIntersect.Value, scene));
-        
-        triangles.Add(ConvertVector(umbraIntersect.Value, scene));
-        triangles.Add(ConvertVector(exTanLeftEnd, scene));
-        triangles.Add(ConvertVector(exTanRightEnd, scene));
-        
+
+        hardTriangles.Add(ConvertVector(exTanRightOc, scene));
+        hardTriangles.Add(ConvertVector(exTanLeftOc, scene));
+        hardTriangles.Add(ConvertVector(umbraIntersect.Value, scene));
+
+        softTriangles.Add(ConvertVector(umbraIntersect.Value, scene));
+        softTriangles.Add(ConvertVector(exTanLeftEnd, scene));
+        softTriangles.Add(ConvertVector(exTanRightEnd, scene));
+
         quads.Add(ConvertVector(inTanLeftOc, scene));
         quads.Add(ConvertVector(exTanLeftOc, scene));
         quads.Add(ConvertVector(inTanLeftEnd, scene));
         quads.Add(ConvertVector(leftSplitterEnd, scene));
-        
+
         quads.Add(ConvertVector(exTanRightOc, scene));
         quads.Add(ConvertVector(inTanRightOc, scene));
         quads.Add(ConvertVector(rightSplitterEnd, scene));
         quads.Add(ConvertVector(inTanRightEnd, scene));
         
+        drawHelper.DrawTriangles(hardTriangles.ToArray(), basicEffect, BlendState.AlphaBlend);
         
+        occlusionShadowEffect.Parameters["WorldViewProjection"].SetValue(scene.Camera.GetViewMatrix(scene.ScreenBounds));
+        occlusionShadowEffect.Parameters["lightPosition"].SetValue(scene.Light.LightPosition);
+        occlusionShadowEffect.Parameters["lightRadius"].SetValue(scene.Light.LightRadius);
+        occlusionShadowEffect.Parameters["occluderPosition"].SetValue(occluder.LightPosition);
+        occlusionShadowEffect.Parameters["occluderRadius"].SetValue(occluder.Radius);
         
+        drawHelper.DrawTriangles(softTriangles.ToArray(), occlusionShadowEffect, BlendState.AlphaBlend);
+        drawHelper.DrawQuads(quads.ToArray(), occlusionShadowEffect, BlendState.AlphaBlend);
     }
 
     private VertexPositionColor ConvertVector(Vector2 v, SceneInfo scene, Color color = default)
     {
         if (color == default) color = Color.Black;
 
-        return new VertexPositionColor(
-            new Vector3(scene.Camera.TransformToClip(v, scene.ScreenBounds), 0),
+        return new(
+            new(v, 0),
             color
         );
     }
