@@ -45,8 +45,8 @@ public class DrawHelper
             indices[indexOffset + 1] = (short)(vOffset + 1);
             indices[indexOffset + 2] = (short)(vOffset + 2);
             indices[indexOffset + 3] = (short)(vOffset + 1);
-            indices[indexOffset + 4] = (short)(vOffset + 3);
-            indices[indexOffset + 5] = (short)(vOffset + 2);
+            indices[indexOffset + 4] = (short)(vOffset + 2);
+            indices[indexOffset + 5] = (short)(vOffset + 3);
         }
         
         graphicsDevice.DrawUserIndexedPrimitives(

@@ -38,3 +38,9 @@
 /processorParam:DebugMode=Auto
 /build:Shaders/pointdistance.fx
 
+#begin Shaders/voronoi.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Shaders/voronoi.fx
+

@@ -159,12 +159,12 @@ void RunGame()
 {
     const int numPlanets = 4000;
 
-    const float maxDistance = 10000;
+    const float maxDistance = 20000;
     const float minDistance = 100;
     const float maxMass = 500;
     const float minMass = 100;
 
-    const float starMass = 200000;
+    const float starMass = 2000000;
     
     var solver = new BarnesHutGravity();
     var gravityObject = new GravityObject(solver);
