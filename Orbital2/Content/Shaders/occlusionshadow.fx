@@ -41,6 +41,11 @@ struct VertexShaderOutput
 // Maybe another blending mode could solve the blending issue with this method
 // Lots to think about
 
+// It may be possible to integrate luminance analytically, still: check if a solution exists to the integral of the arc length plus accounting for the distance
+// Will be a function of (distance, light radius, arc start, arc end)
+// ACTUALLY we can optimize by considering: at long distances, the distance falloff is less extreme between the closest and further points on the star arc
+// So at far distances, we can just use simple arc length integration
+
 float NormalizeAngle(float angle)
 {
     // fmod approach: more concise but potentially less precise for large angles

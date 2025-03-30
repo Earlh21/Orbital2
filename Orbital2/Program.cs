@@ -157,7 +157,7 @@ void RunTest()
 
 void RunGame()
 {
-    const int numPlanets = 4000;
+    const int numPlanets = 5000;
 
     const float maxDistance = 20000;
     const float minDistance = 100;

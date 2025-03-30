@@ -40,35 +40,38 @@ public class DrawHelper
         DrawTrianglesHelper(vertices, blendMode, count);
     }
 
-    private readonly FixedList<short> indices = new();
-    
-    private void DrawQuadsHelper<T>(T[] vertices, BlendState blendMode, int? count) where T : struct, IVertexType
-    {
-        graphicsDevice.RasterizerState = RasterizerState.CullNone;
-        graphicsDevice.BlendState = blendMode;
-        
-        if (vertices.Length < 4) return;
-        if(vertices.Length % 4 != 0) throw new ArgumentException("Vertices length must be a multiple of 4");
-        
-        count ??= vertices.Length / 4;
-        if(count > vertices.Length / 4) throw new ArgumentException("Count must be less than or equal to vertices length divided by 4");
-        
-        indices.Resize(count.Value * 6);
+private readonly FixedList<short> indices16 = new();
+private readonly FixedList<int> indices32 = new();
 
-        if (indices.Used < indices.Array.Length)
+private void DrawQuadsHelper<T>(T[] vertices, BlendState blendMode, int? count) where T : struct, IVertexType
+{
+    graphicsDevice.RasterizerState = RasterizerState.CullNone;
+    graphicsDevice.BlendState = blendMode;
+
+    if (vertices.Length < 4) return;
+    if (vertices.Length % 4 != 0) throw new ArgumentException("Vertices length must be a multiple of 4");
+
+    count ??= vertices.Length / 4;
+    if (count > vertices.Length / 4) throw new ArgumentException("Count must be less than or equal to vertices length divided by 4");
+
+    int numVertices = vertices.Length;
+    int numIndices = count.Value * 6;
+
+    if (numVertices <= ushort.MaxValue)
+    {
+        indices16.Resize(numIndices);
+        if (indices16.Used < indices16.Array.Length)
         {
-            indices.Reset();
-            
+            indices16.Reset();
             for (int i = 0; i < count; ++i)
             {
                 short vOffset = (short)(i * 4);
-
-                indices.Add(vOffset);
-                indices.Add((short)(vOffset + 1));
-                indices.Add((short)(vOffset + 2));
-                indices.Add((short)(vOffset + 1));
-                indices.Add((short)(vOffset + 2));
-                indices.Add((short)(vOffset + 3));
+                indices16.Add(vOffset);
+                indices16.Add((short)(vOffset + 1));
+                indices16.Add((short)(vOffset + 2));
+                indices16.Add((short)(vOffset + 1));
+                indices16.Add((short)(vOffset + 2));
+                indices16.Add((short)(vOffset + 3));
             }
         }
 
@@ -77,11 +80,40 @@ public class DrawHelper
             vertices,
             0,
             vertices.Length,
-            indices.Array,
+            indices16.Array,
             0,
             count.Value * 2
         );
     }
+    else
+    {
+        indices32.Resize(numIndices);
+        if (indices32.Used < indices32.Array.Length)
+        {
+            indices32.Reset();
+            for (int i = 0; i < count; ++i)
+            {
+                int vOffset = i * 4;
+                indices32.Add(vOffset);
+                indices32.Add(vOffset + 1);
+                indices32.Add(vOffset + 2);
+                indices32.Add(vOffset + 1);
+                indices32.Add(vOffset + 2);
+                indices32.Add(vOffset + 3);
+            }
+        }
+
+        graphicsDevice.DrawUserIndexedPrimitives(
+            PrimitiveType.TriangleList,
+            vertices,
+            0,
+            vertices.Length,
+            indices32.Array,
+            0,
+            count.Value * 2
+        );
+    }
+}
     
     public void DrawQuads<T>(T[] vertices, Effect effect, BlendState blendMode, int? count = null) where T : struct, IVertexType
     {

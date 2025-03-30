@@ -279,7 +279,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
             DrawLighting(lightRenderer);
         }
 
-        DrawObjects(GameWorld.PhysicalObjects);
+        //DrawObjects(GameWorld.PhysicalObjects);
 
         var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
 
