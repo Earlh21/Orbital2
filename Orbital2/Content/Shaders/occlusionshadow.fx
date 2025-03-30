@@ -14,8 +14,6 @@
 extern float4x4 WorldViewProjection;
 extern float2 lightPosition;
 extern float lightRadius;
-extern float2 occluderPosition;
-extern float occluderRadius;
 
 struct VertexShaderInput
 {
