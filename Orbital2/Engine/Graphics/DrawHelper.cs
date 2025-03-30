@@ -1,6 +1,7 @@
 ﻿using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Orbital2.Engine.Graphics.Shaders;
 
 namespace Orbital2.Engine.Graphics;
 
@@ -13,9 +14,8 @@ public class DrawHelper
         this.graphicsDevice = graphicsDevice;
     }
 
-    public void DrawTriangles(VertexPositionColor[] vertices, Effect effect, BlendState blendMode)
+    private void DrawTrianglesHelper<T>(T[] vertices, BlendState blendMode) where T : struct, IVertexType
     {
-        effect.CurrentTechnique.Passes[0].Apply();
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
         graphicsDevice.BlendState = blendMode;
         
@@ -25,9 +25,20 @@ public class DrawHelper
         graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
     }
     
-    public void DrawQuads(VertexPositionColor[] vertices, Effect effect, BlendState blendMode)
+    public void DrawTriangles<T>(T[] vertices, Effect effect, BlendState blendMode) where T : struct, IVertexType
     {
         effect.CurrentTechnique.Passes[0].Apply();
+        DrawTrianglesHelper(vertices, blendMode);
+    }
+    
+    public void DrawTriangles<T>(T[] vertices, IEffect effect, BlendState blendMode) where T : struct, IVertexType
+    {
+        effect.Apply();
+        DrawTrianglesHelper(vertices, blendMode);
+    }
+    
+    private void DrawQuadsHelper<T>(T[] vertices, BlendState blendMode) where T : struct, IVertexType
+    {
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
         graphicsDevice.BlendState = blendMode;
         
@@ -60,9 +71,20 @@ public class DrawHelper
         );
     }
     
-    public void DrawScreen(Camera camera, Effect effect, BlendState blendMode)
+    public void DrawQuads<T>(T[] vertices, Effect effect, BlendState blendMode) where T : struct, IVertexType
     {
         effect.CurrentTechnique.Passes[0].Apply();
+        DrawQuadsHelper(vertices, blendMode);
+    }
+    
+    public void DrawQuads<T>(T[] vertices, IEffect effect, BlendState blendMode) where T : struct, IVertexType
+    {
+        effect.Apply();
+        DrawQuadsHelper(vertices, blendMode);
+    }
+    
+    private void DrawScreenHelper(Camera camera, BlendState blendMode)
+    {
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
         graphicsDevice.BlendState = blendMode;
         
@@ -76,14 +98,26 @@ public class DrawHelper
         var bottomLeftWorld = camera.TransformToWorld(bottomLeftScreen, graphicsDevice.Viewport.Bounds);
         var bottomRightWorld = camera.TransformToWorld(bottomRightScreen, graphicsDevice.Viewport.Bounds);
         
-        VertexPositionColor[] vertices =
+        VertexPosition[] vertices =
         [
-            new(new(topLeftWorld, 0), Color.White),
-            new(new(topRightWorld, 0), Color.White),
-            new(new(bottomLeftWorld, 0), Color.White),
-            new(new(bottomRightWorld, 0), Color.White)
+            new(new(topLeftWorld, 0)),
+            new(new(topRightWorld, 0)),
+            new(new(bottomLeftWorld, 0)),
+            new(new(bottomRightWorld, 0))
         ];
         
-        DrawQuads(vertices, effect, blendMode);
+        DrawQuadsHelper(vertices, blendMode);
+    }
+
+    public void DrawScreen(Camera camera, Effect effect, BlendState blendMode)
+    {
+        effect.CurrentTechnique.Passes[0].Apply();
+        DrawScreenHelper(camera, blendMode);
+    }
+
+    public void DrawScreen(Camera camera, IEffect effect, BlendState blendMode)
+    {
+        effect.Apply();
+        DrawScreenHelper(camera, blendMode);
     }
 }

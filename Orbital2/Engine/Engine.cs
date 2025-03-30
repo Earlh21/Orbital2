@@ -15,49 +15,46 @@ public class Engine
     public float PhysicsTimestep
     {
         get => GameWorld.PhysicsWorld.Timestep;
-        set => GameWorld.PhysicsWorld.Timestep = value;
+        set
+        {
+            GameWorld.PhysicsWorld.Timestep = value;
+            Clock.FixedTimeStep = value;
+        }
     }
 
     public GameWorld GameWorld { get; } = new();
+    public Clock Clock { get; } = new() { TimeScale = 0.3f};
     public Input Input { get; } = new();
 
     private List<Tuple<float, PhysicalGameObject, PhysicalGameObject>> collisions = [];
 
     private EventContext eventContext;
 
-    private float accumulator = 0;
-
-    private Stopwatch watch = new();
-    private double totalTime = 0;
-    private int runs = 0;
-
     public Engine(float physicsTimestep = 0.2f)
     {
         PhysicsTimestep = physicsTimestep;
-        accumulator = 0;
 
         eventContext = new(GameWorld) { Input = Input };
     }
 
     public void Update(float timestep)
     {
-        accumulator += timestep;
+        Clock.Update(timestep);
 
-        TriggerWaitingCollisions(accumulator / PhysicsTimestep);
+        TriggerWaitingCollisions(Clock.AccumulatorT);
 
-        while(accumulator >= PhysicsTimestep)
+        while(Clock.DoFixedStep())
         {
             UpdatePhysics();
-            accumulator -= PhysicsTimestep;
         }
 
         UpdateGameWorld();
 
-        GameWorld.PhysicsWorld.InterpolateLinear(accumulator / PhysicsTimestep);
+        GameWorld.PhysicsWorld.InterpolateLinear(Clock.AccumulatorT);
 
         foreach (var gameObject in GameWorld.GameObjects)
         {
-            gameObject.OnFrameUpdate(timestep, eventContext);
+            gameObject.OnFrameUpdate(Clock.DeltaTime, eventContext);
         }
 
         UpdateGameWorld();
@@ -93,20 +90,8 @@ public class Engine
         {
             gameObject.PostPhysicsUpdate(PhysicsTimestep, eventContext);
         }
-
-        watch.Start();
+        
         FindAndTriggerCollisions();
-        watch.Stop();
-
-        totalTime += watch.Elapsed.TotalSeconds;
-        runs++;
-
-        watch.Reset();
-
-        if(runs == 50)
-        {
-            Debug.WriteLine($"Average collision time: {totalTime / runs}");
-        }
     }
 
     private void FindAndTriggerCollisions()

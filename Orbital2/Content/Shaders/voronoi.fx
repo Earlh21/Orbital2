@@ -23,23 +23,20 @@ extern float radius;
 extern float time;
 extern float4 color0;
 extern float4 color1;
-
-static const float warpStrength = 0.7;
-static const float timeScale = 0.05;
-static const float voronoiScale = 3;
-static const float jitter = 1;
+extern float warpStrength = 0.7;
+extern float timeScale = 0.05;
+extern float voronoiScale = 3;
+extern float jitter = 1;
 
 struct VertexShaderInput
 {
 	float4 Position : SV_POSITION;
-	float4 Color : COLOR0;
 };
 
 struct VertexShaderOutput
 {
 	float4 Position : SV_POSITION;
 	float4 WorldPosition : TEXCOORD0;
-	float4 Color : COLOR0;
 };
 
 // --- Hash Functions (Choose one or provide your own) ---
@@ -263,7 +260,6 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 
 	output.Position = mul(input.Position, WorldViewProjection);
 	output.WorldPosition = input.Position;
-	output.Color = input.Color;
 
 	return output;
 }

@@ -20,14 +20,12 @@ extern float occluderRadius;
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
-	float4 Color : COLOR0;
 };
 
 struct VertexShaderOutput
 {
 	float4 Position : SV_POSITION;
 	float4 WorldPosition : TEXCOORD0;
-	float4 Color : COLOR0;
 };
 
 // There'll be an issue if a pixel is occluded twice in the same direction
@@ -163,7 +161,6 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 
 	output.Position = mul(input.Position, WorldViewProjection);
 	output.WorldPosition = input.Position;
-	output.Color = input.Color;
 
 	return output;
 }

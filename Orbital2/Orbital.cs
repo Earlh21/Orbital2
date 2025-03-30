@@ -15,6 +15,7 @@ using Orbital2.Game;
 using Orbital2.Game.Astrobodies;
 using MonoGame.Extended.Collections;
 using Orbital2.Engine.Graphics;
+using Orbital2.Engine.Graphics.Shaders;
 using Orbital2.Lighting;
 
 namespace Orbital2;
@@ -24,13 +25,11 @@ public class Orbital : Microsoft.Xna.Framework.Game
     public Engine.Engine Engine { get; set; } = new();
     public GameWorld GameWorld => Engine.GameWorld;
 
-    public float TimeScale { get; set; } = 1;
-        
     private GraphicsDeviceManager graphics;
     private DrawHelper drawHelper;
     private SpriteBatch spriteBatch;
     private SpriteFont arial;
-    private Effect voronoiEffect;
+    private VoronoiEffect voronoiEffect;
 
     private float time = 0;
 
@@ -46,13 +45,13 @@ public class Orbital : Microsoft.Xna.Framework.Game
     public Orbital()
     {
         graphics = new GraphicsDeviceManager(this);
-        
+
         graphics.PreferredBackBufferFormat = SurfaceFormat.Bgra32;
         graphics.PreferredDepthStencilFormat = DepthFormat.Depth24Stencil8;
         graphics.GraphicsProfile = GraphicsProfile.HiDef;
-        
+
         graphics.ApplyChanges();
-        
+
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
@@ -62,18 +61,24 @@ public class Orbital : Microsoft.Xna.Framework.Game
     protected override void Initialize()
     {
         base.Initialize();
+
         arial = Content.Load<SpriteFont>("arial");
-        var lineDistanceEffect = Content.Load<Effect>("Shaders/linedistance");
-        var pointDistanceEffect = Content.Load<Effect>("Shaders/pointdistance");
+
         var occlusionShadowEffect = Content.Load<Effect>("Shaders/occlusionshadow");
-        voronoiEffect = Content.Load<Effect>("Shaders/voronoi");
-        
-        GraphicsDevice.RasterizerState = new()
-        {
-            CullMode = CullMode.None
-        };
-        
-        lightRenderer = new(GraphicsDevice, lineDistanceEffect, pointDistanceEffect, occlusionShadowEffect);
+
+        var pointDistanceEffect = new PointDistanceEffect(
+            Content.Load<Effect>("Shaders/pointdistance"), camera,
+            () => GraphicsDevice.Viewport.Bounds
+        );
+
+        voronoiEffect = new(
+            Content.Load<Effect>("Shaders/voronoi"),
+            camera,
+            () => GraphicsDevice.Viewport.Bounds,
+            Engine.Clock
+        );
+
+        lightRenderer = new(GraphicsDevice, pointDistanceEffect, occlusionShadowEffect);
         drawHelper = new(GraphicsDevice);
     }
 
@@ -84,7 +89,8 @@ public class Orbital : Microsoft.Xna.Framework.Game
 
     private void UpdateInput(GameTime gameTime)
     {
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
+            Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
 
         if (Mouse.GetState().RightButton == ButtonState.Pressed && IsActive)
@@ -114,7 +120,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
         {
             if (Keyboard.GetState().IsKeyDown(Keys.LeftShift))
             {
-                TimeScale *= 1.001f;
+                Engine.Clock.TimeScale *= 1.001f;
             }
             else
             {
@@ -126,7 +132,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
         {
             if (Keyboard.GetState().IsKeyDown(Keys.LeftShift))
             {
-                TimeScale /= 1.001f;
+                Engine.Clock.TimeScale /= 1.001f;
             }
             else
             {
@@ -134,12 +140,12 @@ public class Orbital : Microsoft.Xna.Framework.Game
             }
         }
 
-        if(Keyboard.GetState().IsKeyDown(Keys.LeftShift) && Keyboard.GetState().IsKeyDown(Keys.Enter))
+        if (Keyboard.GetState().IsKeyDown(Keys.LeftShift) && Keyboard.GetState().IsKeyDown(Keys.Enter))
         {
-            TimeScale = 1;
+            Engine.Clock.TimeScale = 1;
         }
 
-        if(Engine.Input.IsKeyJustPressed(Keys.Delete))
+        if (Engine.Input.IsKeyJustPressed(Keys.Delete))
         {
             drawOutlines = !drawOutlines;
         }
@@ -149,13 +155,13 @@ public class Orbital : Microsoft.Xna.Framework.Game
 
     private void UpdateEngine(GameTime gameTime)
     {
-        Engine.Update(gameTime.GetElapsedSeconds() * TimeScale);
+        Engine.Update(gameTime.GetElapsedSeconds());
     }
 
     protected override void Update(GameTime gameTime)
     {
-        time += (float)gameTime.ElapsedGameTime.TotalSeconds * TimeScale;
-        
+        time += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
         UpdateInput(gameTime);
         UpdateEngine(gameTime);
 
@@ -173,8 +179,8 @@ public class Orbital : Microsoft.Xna.Framework.Game
     private void DrawBody(Body body, Color color)
     {
         DrawCircle(body.InterpolatedPosition, body.Radius, color, true);
-            
-        if(body.Radius < 3)
+
+        if (body.Radius < 3)
         {
             //DrawCircle(body.InterpolatedPosition, 3, color, false);
         }
@@ -184,14 +190,17 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         Color color = temperatureGradient.GetColor(planet.Temperature);
         DrawBody(planet.Body, color);
-            
-        if(planet.Life != null)
+
+        if (planet.Life != null)
         {
             Vector2 bottomPos = planet.Body.InterpolatedPosition - new Vector2(0, planet.Body.Radius);
             Vector2 bottomScreenPos = camera.TransformToScreen(bottomPos, Window.ClientBounds);
-            spriteBatch.DrawString(arial, planet.Life.Population.ToString(), bottomScreenPos - new Vector2(0, -10), Color.White, 0, new(), camera.Zoom, new(), 0);
-            spriteBatch.DrawString(arial, MathF.Round(planet.Temperature).ToString(), bottomScreenPos - new Vector2(0, -40), Color.White, 0, new(), camera.Zoom, new(), 0);
-            spriteBatch.DrawString(arial, planet.Life.RawMaterials.Hydrogen.ToString(), bottomScreenPos - new Vector2(0, -70), Color.White, 0, new(), camera.Zoom, new(), 0);
+            spriteBatch.DrawString(arial, planet.Life.Population.ToString(), bottomScreenPos - new Vector2(0, -10),
+                Color.White, 0, new(), camera.Zoom, new(), 0);
+            spriteBatch.DrawString(arial, MathF.Round(planet.Temperature).ToString(),
+                bottomScreenPos - new Vector2(0, -40), Color.White, 0, new(), camera.Zoom, new(), 0);
+            spriteBatch.DrawString(arial, planet.Life.RawMaterials.Hydrogen.ToString(),
+                bottomScreenPos - new Vector2(0, -70), Color.White, 0, new(), camera.Zoom, new(), 0);
         }
     }
 
@@ -202,31 +211,32 @@ public class Orbital : Microsoft.Xna.Framework.Game
         var bottomRight = star.InterpolatedPosition + new Vector2(radius, -radius);
         var topLeft = star.InterpolatedPosition + new Vector2(-radius, radius);
         var topRight = star.InterpolatedPosition + new Vector2(radius, radius);
-        
-        voronoiEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(GraphicsDevice.Viewport.Bounds));
-        voronoiEffect.Parameters["position"].SetValue(star.InterpolatedPosition);
-        voronoiEffect.Parameters["radius"].SetValue(star.Radius);
-        voronoiEffect.Parameters["time"].SetValue(time);
-        voronoiEffect.Parameters["color0"].SetValue(Color.Yellow.ToVector4());
-        voronoiEffect.Parameters["color1"].SetValue(Color.OrangeRed.ToVector4());
 
-        VertexPositionColor[] vertices =
+        voronoiEffect.Position = star.InterpolatedPosition;
+        voronoiEffect.Radius = star.Radius;
+        voronoiEffect.Color0 = Color.Yellow.ToVector4();
+        voronoiEffect.Color1 = Color.OrangeRed.ToVector4();
+        voronoiEffect.WarpStrength = 0.7f;
+        voronoiEffect.VoronoiScale = 3;
+        voronoiEffect.VoronoiJitter = 1;
+
+        VertexPosition[] vertices =
         [
-            new(new(bottomLeft, 0), Color.Black),
-            new(new(bottomRight, 0), Color.Black),
-            new(new(topLeft, 0), Color.Black),
-            new(new(topRight, 0), Color.Black)
+            new(new(bottomLeft, 0)),
+            new(new(bottomRight, 0)),
+            new(new(topLeft, 0)),
+            new(new(topRight, 0))
         ];
-        
+
         drawHelper.DrawQuads(vertices, voronoiEffect, BlendState.AlphaBlend);
     }
-    
+
     private void DrawObjects(IEnumerable<PhysicalGameObject> objects)
     {
         var gradient = new Gradient([new(0, new(0, 0, 1.0f)), new(300, new(0, 1.0f, 0)), new(600, new(1.0f, 0, 0))]);
-        
+
         spriteBatch.Begin();
-        
+
         foreach (var obj in objects)
         {
             if (!camera.GetWorldBounds(Window.ClientBounds).ContainsPoint(obj.InterpolatedPosition)) continue;
@@ -252,10 +262,10 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
         if (star == null) return;
-        
+
         var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().ToList();
         occluders.Remove(star);
-        
+
         lightRenderer.DrawLight(star, camera);
         lightRenderer.DrawShadows(star, occluders, camera);
     }
@@ -263,14 +273,14 @@ public class Orbital : Microsoft.Xna.Framework.Game
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(Color.Black);
-        
-        if(lightRenderer != null)
+
+        if (lightRenderer != null)
         {
             DrawLighting(lightRenderer);
         }
 
         DrawObjects(GameWorld.PhysicalObjects);
-        
+
         var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
 
         if (star != null)

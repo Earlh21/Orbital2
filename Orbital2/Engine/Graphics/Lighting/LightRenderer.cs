@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Orbital2.Engine.Graphics;
+using Orbital2.Engine.Graphics.Shaders;
 using TorchSharp.Modules;
 
 namespace Orbital2.Lighting;
@@ -16,12 +17,11 @@ public class LightRenderer : IDisposable
     private readonly DrawHelper drawHelper;
     private readonly SpriteBatch spriteBatch;
     private readonly BasicEffect basicEffect;
-    private readonly Effect lineDistanceEffect;
-    private readonly Effect pointDistanceEffect;
+    private readonly PointDistanceEffect pointDistanceEffect;
     private readonly Effect occlusionShadowEffect;
     private bool disposed;
 
-    public LightRenderer(GraphicsDevice graphicsDevice, Effect lineDistanceEffect, Effect pointDistanceEffect, Effect occlusionShadowEffect)
+    public LightRenderer(GraphicsDevice graphicsDevice, PointDistanceEffect pointDistanceEffect, Effect occlusionShadowEffect)
     {
         this.graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         spriteBatch = new(graphicsDevice);
@@ -35,7 +35,6 @@ public class LightRenderer : IDisposable
             Projection = Matrix.Identity
         };
 
-        this.lineDistanceEffect = lineDistanceEffect;
         this.pointDistanceEffect = pointDistanceEffect;
         this.occlusionShadowEffect = occlusionShadowEffect;
 
@@ -60,11 +59,9 @@ public class LightRenderer : IDisposable
     public void DrawLight(ILight light,
         Camera camera)
     {
-        pointDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
-        pointDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
-        pointDistanceEffect.Parameters["source"].SetValue(light.LightPosition);
-        pointDistanceEffect.Parameters["maxDistance"].SetValue(light.LightIntensity);
-        pointDistanceEffect.Parameters["sourceColor"].SetValue(light.Lightcolor.ToVector4());
+        pointDistanceEffect.Point = light.LightPosition;
+        pointDistanceEffect.MaxDistance = light.LightIntensity;
+        pointDistanceEffect.Color = light.LightColor.ToVector4();
         
         drawHelper.DrawScreen(camera, pointDistanceEffect, BlendState.Additive);
     }
@@ -75,7 +72,6 @@ public class LightRenderer : IDisposable
         Camera camera)
     {
         basicEffect.View = camera.GetViewMatrix(graphicsDevice.Viewport.Bounds);
-        lineDistanceEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
         
         var sceneInfo = new SceneInfo(light, camera, graphicsDevice.Viewport.Bounds);
         
@@ -178,37 +174,37 @@ public class LightRenderer : IDisposable
         Vector2 rightSplitterEnd = ExtendShadowRay(inTanLeftLi, exTanRightOc, ShadowLength);
         Vector2 leftSplitterEnd = ExtendShadowRay(inTanRightLi, exTanLeftOc, ShadowLength);
 
-        List<VertexPositionColor> quads = [];
+        List<VertexPosition> quads = [];
         List<VertexPositionColor> hardTriangles = [];
-        List<VertexPositionColor> softTriangles = [];
+        List<VertexPosition> softTriangles = [];
         
-        quads.Add(ConvertVector(exTanLeftOc, scene));
-        quads.Add(ConvertVector(umbraIntersect.Value, scene));
-        quads.Add(ConvertVector(leftSplitterEnd, scene));
-        quads.Add(ConvertVector(exTanRightEnd, scene));
+        quads.Add(ConvertVector(exTanLeftOc));
+        quads.Add(ConvertVector(umbraIntersect.Value));
+        quads.Add(ConvertVector(leftSplitterEnd));
+        quads.Add(ConvertVector(exTanRightEnd));
 
-        quads.Add(ConvertVector(umbraIntersect.Value, scene));
-        quads.Add(ConvertVector(exTanRightOc, scene));
-        quads.Add(ConvertVector(exTanLeftEnd, scene));
-        quads.Add(ConvertVector(rightSplitterEnd, scene));
+        quads.Add(ConvertVector(umbraIntersect.Value));
+        quads.Add(ConvertVector(exTanRightOc));
+        quads.Add(ConvertVector(exTanLeftEnd));
+        quads.Add(ConvertVector(rightSplitterEnd));
 
-        hardTriangles.Add(ConvertVector(exTanRightOc, scene));
-        hardTriangles.Add(ConvertVector(exTanLeftOc, scene));
-        hardTriangles.Add(ConvertVector(umbraIntersect.Value, scene));
+        hardTriangles.Add(ConvertVector(exTanRightOc, Color.Black));
+        hardTriangles.Add(ConvertVector(exTanLeftOc, Color.Black));
+        hardTriangles.Add(ConvertVector(umbraIntersect.Value, Color.Black));
 
-        softTriangles.Add(ConvertVector(umbraIntersect.Value, scene));
-        softTriangles.Add(ConvertVector(exTanLeftEnd, scene));
-        softTriangles.Add(ConvertVector(exTanRightEnd, scene));
+        softTriangles.Add(ConvertVector(umbraIntersect.Value));
+        softTriangles.Add(ConvertVector(exTanLeftEnd));
+        softTriangles.Add(ConvertVector(exTanRightEnd));
 
-        quads.Add(ConvertVector(inTanLeftOc, scene));
-        quads.Add(ConvertVector(exTanLeftOc, scene));
-        quads.Add(ConvertVector(inTanLeftEnd, scene));
-        quads.Add(ConvertVector(leftSplitterEnd, scene));
+        quads.Add(ConvertVector(inTanLeftOc));
+        quads.Add(ConvertVector(exTanLeftOc));
+        quads.Add(ConvertVector(inTanLeftEnd));
+        quads.Add(ConvertVector(leftSplitterEnd));
 
-        quads.Add(ConvertVector(exTanRightOc, scene));
-        quads.Add(ConvertVector(inTanRightOc, scene));
-        quads.Add(ConvertVector(rightSplitterEnd, scene));
-        quads.Add(ConvertVector(inTanRightEnd, scene));
+        quads.Add(ConvertVector(exTanRightOc));
+        quads.Add(ConvertVector(inTanRightOc));
+        quads.Add(ConvertVector(rightSplitterEnd));
+        quads.Add(ConvertVector(inTanRightEnd));
         
         drawHelper.DrawTriangles(hardTriangles.ToArray(), basicEffect, BlendState.AlphaBlend);
         
@@ -222,14 +218,14 @@ public class LightRenderer : IDisposable
         drawHelper.DrawQuads(quads.ToArray(), occlusionShadowEffect, BlendState.AlphaBlend);
     }
 
-    private VertexPositionColor ConvertVector(Vector2 v, SceneInfo scene, Color color = default)
+    private VertexPosition ConvertVector(Vector2 v)
     {
-        if (color == default) color = Color.Black;
-
-        return new(
-            new(v, 0),
-            color
-        );
+        return new(new(v, 0));
+    }
+    
+    private VertexPositionColor ConvertVector(Vector2 v, Color color)
+    {
+        return new(new(v, 0), color);
     }
 
     public void Dispose()
