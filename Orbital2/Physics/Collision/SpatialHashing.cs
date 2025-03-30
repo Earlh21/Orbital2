@@ -63,10 +63,7 @@ internal class SpatialHashing(float cellSize) : BroadPhase
             return [];
         }
 
-        var cellsInRange = grid.GridCells.Where(cell =>
-        {
-            return (body.Position - grid.GetWorldPosition(cell.Key)).LengthSquared() <= distance * distance;
-        });
+        var cellsInRange = grid.GridCells.Where(cell => (body.Position - grid.GetWorldPosition(cell.Key)).LengthSquared() <= distance * distance);
 
         return cellsInRange.SelectMany(cell => cell.Value);
     }

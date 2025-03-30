@@ -5,24 +5,24 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Orbital2.Engine.Graphics;
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct VertexPositionOccluder : IVertexType
+public struct VertexPositionCircle : IVertexType
 {
     public Vector3 Position;
-    public Vector2 OccluderPosition;
-    public float OccluderRadius;
+    public Vector2 CirclePosition;
+    public float CircleRadius;
 
-    public static readonly VertexDeclaration VertexDeclaration = new VertexDeclaration(
-        new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),             // Offset 0, Size 12
+    private static readonly VertexDeclaration VertexDeclaration = new (
+        new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),
         new VertexElement(12, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0),
         new VertexElement(20, VertexElementFormat.Single, VertexElementUsage.TextureCoordinate, 1)
     );
 
     VertexDeclaration IVertexType.VertexDeclaration => VertexDeclaration;
 
-    public VertexPositionOccluder(Vector3 position, Vector2 occluderPosition, float occluderRadius)
+    public VertexPositionCircle(Vector3 position, Vector2 circlePosition, float circleRadius)
     {
         Position = position;
-        OccluderPosition = occluderPosition;
-        OccluderRadius = occluderRadius;
+        CirclePosition = circlePosition;
+        CircleRadius = circleRadius;
     }
 }

@@ -52,8 +52,8 @@ public class LightRenderer : IDisposable
     }
     
     private readonly FixedList<VertexPositionColor> hardTriangles = new();
-    private readonly FixedList<VertexPositionOccluder> softTriangles = new();
-    private readonly FixedList<VertexPositionOccluder> quads = new();
+    private readonly FixedList<VertexPositionCircle> softTriangles = new();
+    private readonly FixedList<VertexPositionCircle> quads = new();
     
     public void DrawShadows(
         ILight light,
@@ -90,8 +90,8 @@ public class LightRenderer : IDisposable
         ILight light,
         ILightingOccluder occluder,
         FixedList<VertexPositionColor> hardTriangles,
-        FixedList<VertexPositionOccluder> softTriangles,
-        FixedList<VertexPositionOccluder> quads)
+        FixedList<VertexPositionCircle> softTriangles,
+        FixedList<VertexPositionCircle> quads)
     {
         Vector2 lightPos = light.LightPosition;
         Vector2 occPos = occluder.LightPosition;
@@ -214,7 +214,7 @@ public class LightRenderer : IDisposable
         return null;
     }
 
-    private VertexPositionOccluder ConvertVector(Vector2 v, Vector2 occluderPosition, float occluderRadius)
+    private VertexPositionCircle ConvertVector(Vector2 v, Vector2 occluderPosition, float occluderRadius)
     {
         return new(new(v, 0), occluderPosition, occluderRadius);
     }

@@ -20,6 +20,12 @@
 /processorParam:TextureFormat=Compressed
 /build:File.spritefont;arial.spritefont
 
+#begin Shaders/circle.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Shaders/circle.fx
+
 #begin Shaders/linedistance.fx
 /importer:EffectImporter
 /processor:EffectProcessor

@@ -30,6 +30,11 @@ public class Body
     public float Density => Matter.Density;
     public float Radius => MathF.Sqrt(Mass / (MathF.PI * Density));
     public float Circumference => Radius * MathF.PI * 2;
+    
+    public Vector2 BottomLeft => new(InterpolatedPosition.X - Radius, InterpolatedPosition.Y - Radius);
+    public Vector2 BottomRight => new(InterpolatedPosition.X + Radius, InterpolatedPosition.Y - Radius);
+    public Vector2 TopLeft => new(InterpolatedPosition.X - Radius, InterpolatedPosition.Y + Radius);
+    public Vector2 TopRight => new(InterpolatedPosition.X + Radius, InterpolatedPosition.Y + Radius);
 
     public Body(Matter matter)
     {

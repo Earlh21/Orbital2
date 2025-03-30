@@ -96,6 +96,7 @@ public class World
         return BroadPhase.FixedRaycast(start, end);
     }
 
+    //Predict collisions and invalid if state has changed
     public IEnumerable<ValueTuple<float, Body, Body>> FindCollisions()
     {
         var potentialCollisions = BroadPhase.Collisions();

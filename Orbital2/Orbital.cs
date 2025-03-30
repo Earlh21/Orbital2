@@ -29,6 +29,8 @@ public class Orbital : Microsoft.Xna.Framework.Game
     private DrawHelper drawHelper;
     private SpriteBatch spriteBatch;
     private SpriteFont arial;
+
+    private CircleEffect circleEffect;
     private VoronoiEffect voronoiEffect;
 
     private float time = 0;
@@ -77,6 +79,12 @@ public class Orbital : Microsoft.Xna.Framework.Game
             () => GraphicsDevice.Viewport.Bounds,
             Engine.Clock
         );
+        
+        circleEffect = new(
+            Content.Load<Effect>("Shaders/circle"),
+            camera,
+            () => GraphicsDevice.Viewport.Bounds
+        );
 
         lightRenderer = new(GraphicsDevice, pointDistanceEffect, occlusionShadowEffect);
         drawHelper = new(GraphicsDevice);
@@ -84,7 +92,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
 
     protected override void LoadContent()
     {
-        spriteBatch = new SpriteBatch(GraphicsDevice);
+        spriteBatch = new (GraphicsDevice);
     }
 
     private void UpdateInput(GameTime gameTime)
@@ -204,70 +212,85 @@ public class Orbital : Microsoft.Xna.Framework.Game
         }
     }
 
-    private void DrawStar(Star star)
-    {
-        var radius = star.Radius;
-        var bottomLeft = star.InterpolatedPosition + new Vector2(-radius, -radius);
-        var bottomRight = star.InterpolatedPosition + new Vector2(radius, -radius);
-        var topLeft = star.InterpolatedPosition + new Vector2(-radius, radius);
-        var topRight = star.InterpolatedPosition + new Vector2(radius, radius);
-
-        voronoiEffect.Position = star.InterpolatedPosition;
-        voronoiEffect.Radius = star.Radius;
-        voronoiEffect.Color0 = Color.Yellow.ToVector4();
-        voronoiEffect.Color1 = Color.OrangeRed.ToVector4();
-        voronoiEffect.WarpStrength = 0.7f;
-        voronoiEffect.VoronoiScale = 3;
-        voronoiEffect.VoronoiJitter = 1;
-
-        VertexPosition[] vertices =
-        [
-            new(new(bottomLeft, 0)),
-            new(new(bottomRight, 0)),
-            new(new(topLeft, 0)),
-            new(new(topRight, 0))
-        ];
-
-        drawHelper.DrawQuads(vertices, voronoiEffect, BlendState.AlphaBlend);
-    }
-
+    private readonly FixedList<VertexPositionCircleColor> simpleCircleQuads = new();
+    
     private void DrawObjects(IEnumerable<PhysicalGameObject> objects)
     {
         var gradient = new Gradient([new(0, new(0, 0, 1.0f)), new(300, new(0, 1.0f, 0)), new(600, new(1.0f, 0, 0))]);
 
-        spriteBatch.Begin();
+        //count * 4 is guaranteed to be enough
+        simpleCircleQuads.Resize(objects.Count() * 4);
+        simpleCircleQuads.Reset();
 
         foreach (var obj in objects)
         {
+            //TODO: Cull based on bounds, not center
+            //And could accelerate with a structure easily, just spatial hashing really
             if (!camera.GetWorldBounds(Window.ClientBounds).ContainsPoint(obj.InterpolatedPosition)) continue;
 
-            if (obj is Star star)
+            if (obj is Planet planet)
             {
-                //DrawStar(star);
+                var color = gradient.GetColor(planet.Temperature);
+                
+                simpleCircleQuads.Add(new(new(planet.Body.BottomLeft, 0), color.ToVector4(), planet.InterpolatedPosition, planet.Radius));
+                simpleCircleQuads.Add(new(new(planet.Body.BottomRight, 0), color.ToVector4(), planet.InterpolatedPosition, planet.Radius));
+                simpleCircleQuads.Add(new(new(planet.Body.TopLeft, 0), color.ToVector4(), planet.InterpolatedPosition, planet.Radius));
+                simpleCircleQuads.Add(new(new(planet.Body.TopRight, 0), color.ToVector4(), planet.InterpolatedPosition, planet.Radius));
             }
-            else if (obj is Planet planet)
+            else if (obj is Star star)
             {
-                DrawPlanet(planet, gradient);
+                voronoiEffect.Position = star.InterpolatedPosition;
+                voronoiEffect.Radius = star.Radius;
+                voronoiEffect.Color0 = Color.Yellow.ToVector4();
+                voronoiEffect.Color1 = Color.OrangeRed.ToVector4();
+                voronoiEffect.WarpStrength = 0.7f;
+                voronoiEffect.VoronoiScale = 3;
+                voronoiEffect.VoronoiJitter = 1;
+
+                var starVertices = new[]
+                {
+                    new VertexPosition(new(star.Body.BottomLeft, 0)),
+                    new VertexPosition(new(star.Body.BottomRight, 0)),
+                    new VertexPosition(new(star.Body.TopLeft, 0)),
+                    new VertexPosition(new(star.Body.TopRight, 0))
+                };
+                
+                drawHelper.DrawQuads(starVertices, voronoiEffect, BlendState.AlphaBlend);
             }
             else
             {
-                DrawBody(obj.Body, Color.Yellow);
+                var color = Color.Aqua;
+                simpleCircleQuads.Add(new(new(obj.Body.BottomLeft, 0), color.ToVector4(), obj.InterpolatedPosition, obj.Radius));
+                simpleCircleQuads.Add(new(new(obj.Body.BottomRight, 0), color.ToVector4(), obj.InterpolatedPosition, obj.Radius));
+                simpleCircleQuads.Add(new(new(obj.Body.TopLeft, 0), color.ToVector4(), obj.InterpolatedPosition, obj.Radius));
+                simpleCircleQuads.Add(new(new(obj.Body.TopRight, 0), color.ToVector4(), obj.InterpolatedPosition, obj.Radius));
             }
         }
-
-        spriteBatch.End();
+        
+        drawHelper.DrawQuads(simpleCircleQuads.Array, circleEffect, BlendState.AlphaBlend, simpleCircleQuads.Used / 4);
     }
 
     private void DrawLighting(LightRenderer lightRenderer)
     {
+        var stars = GameWorld.GameObjects.OfType<Star>().ToArray();
+        var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().Where(o => o is not Star);
+
+        lightRenderer.DrawLight(stars[0], camera);
+        
+        foreach (var star in stars)
+        {
+            lightRenderer.DrawShadows(star, occluders, camera);
+        }
+        
+        /**
+        
         var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
         if (star == null) return;
 
-        var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().ToList();
-        occluders.Remove(star);
+        var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().Where(o => o is not Star);
 
         lightRenderer.DrawLight(star, camera);
-        lightRenderer.DrawShadows(star, occluders, camera);
+        lightRenderer.DrawShadows(star, occluders, camera);**/
     }
 
     protected override void Draw(GameTime gameTime)
@@ -279,14 +302,8 @@ public class Orbital : Microsoft.Xna.Framework.Game
             DrawLighting(lightRenderer);
         }
 
-        //DrawObjects(GameWorld.PhysicalObjects);
-
-        var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
-
-        if (star != null)
-        {
-            DrawStar(star);
-        }
+        //TODO: Culling, for shadows (gonna be some thinking and scheming there) and planets and star
+        DrawObjects(GameWorld.PhysicalObjects);
 
         base.Draw(gameTime);
     }
