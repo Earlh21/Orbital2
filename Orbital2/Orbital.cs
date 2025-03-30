@@ -46,6 +46,13 @@ public class Orbital : Microsoft.Xna.Framework.Game
     public Orbital()
     {
         graphics = new GraphicsDeviceManager(this);
+        
+        graphics.PreferredBackBufferFormat = SurfaceFormat.Bgra32;
+        graphics.PreferredDepthStencilFormat = DepthFormat.Depth24Stencil8;
+        graphics.GraphicsProfile = GraphicsProfile.HiDef;
+        
+        graphics.ApplyChanges();
+        
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
