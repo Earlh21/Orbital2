@@ -14,7 +14,7 @@ public class DrawHelper
         this.graphicsDevice = graphicsDevice;
     }
 
-    private void DrawTrianglesHelper<T>(T[] vertices, BlendState blendMode) where T : struct, IVertexType
+    private void DrawTrianglesHelper<T>(T[] vertices, BlendState blendMode, int? count) where T : struct, IVertexType
     {
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
         graphicsDevice.BlendState = blendMode;
@@ -22,22 +22,27 @@ public class DrawHelper
         if (vertices.Length < 3) return;
         if(vertices.Length % 3 != 0) throw new ArgumentException("Vertices length must be a multiple of 3");
         
-        graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, vertices.Length / 3);
+        count ??= vertices.Length / 3;
+        if(count > vertices.Length / 3) throw new ArgumentException("Count must be less than or equal to vertices length divided by 4");
+        
+        graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices, 0, count.Value);
     }
     
-    public void DrawTriangles<T>(T[] vertices, Effect effect, BlendState blendMode) where T : struct, IVertexType
+    public void DrawTriangles<T>(T[] vertices, Effect effect, BlendState blendMode, int? count = null) where T : struct, IVertexType
     {
         effect.CurrentTechnique.Passes[0].Apply();
-        DrawTrianglesHelper(vertices, blendMode);
+        DrawTrianglesHelper(vertices, blendMode, count);
     }
     
-    public void DrawTriangles<T>(T[] vertices, IEffect effect, BlendState blendMode) where T : struct, IVertexType
+    public void DrawTriangles<T>(T[] vertices, IEffect effect, BlendState blendMode, int? count = null) where T : struct, IVertexType
     {
         effect.Apply();
-        DrawTrianglesHelper(vertices, blendMode);
+        DrawTrianglesHelper(vertices, blendMode, count);
     }
+
+    private readonly FixedList<short> indices = new();
     
-    private void DrawQuadsHelper<T>(T[] vertices, BlendState blendMode) where T : struct, IVertexType
+    private void DrawQuadsHelper<T>(T[] vertices, BlendState blendMode, int? count) where T : struct, IVertexType
     {
         graphicsDevice.RasterizerState = RasterizerState.CullNone;
         graphicsDevice.BlendState = blendMode;
@@ -45,42 +50,49 @@ public class DrawHelper
         if (vertices.Length < 4) return;
         if(vertices.Length % 4 != 0) throw new ArgumentException("Vertices length must be a multiple of 4");
         
-        int quadCount = vertices.Length / 4;
-        var indices = new short[quadCount * 6];
+        count ??= vertices.Length / 4;
+        if(count > vertices.Length / 4) throw new ArgumentException("Count must be less than or equal to vertices length divided by 4");
         
-        for (int i = 0; i < quadCount; ++i)
+        indices.Resize(count.Value * 6);
+
+        if (indices.Used < indices.Array.Length)
         {
-            short vOffset = (short)(i * 4);
-            int indexOffset = i * 6;
-            indices[indexOffset + 0] = vOffset;
-            indices[indexOffset + 1] = (short)(vOffset + 1);
-            indices[indexOffset + 2] = (short)(vOffset + 2);
-            indices[indexOffset + 3] = (short)(vOffset + 1);
-            indices[indexOffset + 4] = (short)(vOffset + 2);
-            indices[indexOffset + 5] = (short)(vOffset + 3);
+            indices.Reset();
+            
+            for (int i = 0; i < count; ++i)
+            {
+                short vOffset = (short)(i * 4);
+
+                indices.Add(vOffset);
+                indices.Add((short)(vOffset + 1));
+                indices.Add((short)(vOffset + 2));
+                indices.Add((short)(vOffset + 1));
+                indices.Add((short)(vOffset + 2));
+                indices.Add((short)(vOffset + 3));
+            }
         }
-        
+
         graphicsDevice.DrawUserIndexedPrimitives(
             PrimitiveType.TriangleList,
             vertices,
             0,
             vertices.Length,
-            indices,
+            indices.Array,
             0,
-            quadCount * 2
+            count.Value * 2
         );
     }
     
-    public void DrawQuads<T>(T[] vertices, Effect effect, BlendState blendMode) where T : struct, IVertexType
+    public void DrawQuads<T>(T[] vertices, Effect effect, BlendState blendMode, int? count = null) where T : struct, IVertexType
     {
         effect.CurrentTechnique.Passes[0].Apply();
-        DrawQuadsHelper(vertices, blendMode);
+        DrawQuadsHelper(vertices, blendMode, count);
     }
     
-    public void DrawQuads<T>(T[] vertices, IEffect effect, BlendState blendMode) where T : struct, IVertexType
+    public void DrawQuads<T>(T[] vertices, IEffect effect, BlendState blendMode, int? count = null) where T : struct, IVertexType
     {
         effect.Apply();
-        DrawQuadsHelper(vertices, blendMode);
+        DrawQuadsHelper(vertices, blendMode, count);
     }
     
     private void DrawScreenHelper(Camera camera, BlendState blendMode)
@@ -106,7 +118,7 @@ public class DrawHelper
             new(new(bottomRightWorld, 0))
         ];
         
-        DrawQuadsHelper(vertices, blendMode);
+        DrawQuadsHelper(vertices, blendMode, null);
     }
 
     public void DrawScreen(Camera camera, Effect effect, BlendState blendMode)

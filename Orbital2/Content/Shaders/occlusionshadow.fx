@@ -20,12 +20,16 @@ extern float occluderRadius;
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
+	float2 OccluderPosition : TEXCOORD0;
+	float OccluderRadius : TEXCOORD1;
 };
 
 struct VertexShaderOutput
 {
 	float4 Position : SV_POSITION;
-	float4 WorldPosition : TEXCOORD0;
+	float2 OccluderPosition : TEXCOORD0;
+	float OccluderRadius : TEXCOORD1;
+	float4 WorldPosition : TEXCOORD2;
 };
 
 // There'll be an issue if a pixel is occluded twice in the same direction
@@ -161,6 +165,8 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 
 	output.Position = mul(input.Position, WorldViewProjection);
 	output.WorldPosition = input.Position;
+	output.OccluderPosition = input.OccluderPosition;
+	output.OccluderRadius = input.OccluderRadius;
 
 	return output;
 }
@@ -168,7 +174,7 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
 	float2 lightArc = GetArc(lightPosition, lightRadius, input.WorldPosition.xy);
-	float2 occluderArc = GetArc(occluderPosition, occluderRadius, input.WorldPosition.xy);
+	float2 occluderArc = GetArc(input.OccluderPosition, input.OccluderRadius, input.WorldPosition.xy);
 	
 	float percentOccluded = GetPercentOccluded(lightArc.x, lightArc.y, occluderArc.x, occluderArc.y);
 	
