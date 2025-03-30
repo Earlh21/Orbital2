@@ -22,7 +22,8 @@ public class LightRenderer : IDisposable
     private readonly Effect occlusionShadowEffect;
     private bool disposed;
 
-    public LightRenderer(GraphicsDevice graphicsDevice, PointDistanceEffect pointDistanceEffect, Effect occlusionShadowEffect)
+    public LightRenderer(GraphicsDevice graphicsDevice, PointDistanceEffect pointDistanceEffect,
+        Effect occlusionShadowEffect)
     {
         this.graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         spriteBatch = new(graphicsDevice);
@@ -42,50 +43,59 @@ public class LightRenderer : IDisposable
         drawHelper = new(this.graphicsDevice);
     }
 
-    public void DrawLight(ILight light, Camera camera)
+    public void DrawLighting(ILight light, IEnumerable<ILightingOccluder> occluders, Camera camera)
+    {
+        DrawLight(light, camera);
+        DrawShadows(light, occluders, camera);
+        
+        graphicsDevice.SetRenderTarget(null);
+    }
+
+    private void DrawLight(ILight light, Camera camera)
     {
         pointDistanceEffect.Point = light.LightPosition;
         pointDistanceEffect.MaxDistance = light.LightIntensity;
         pointDistanceEffect.Color = light.LightColor.ToVector4();
-        
+
         drawHelper.DrawScreen(camera, pointDistanceEffect, BlendState.Additive);
     }
-    
+
     private readonly FixedList<VertexPositionColor> hardTriangles = new();
     private readonly FixedList<VertexPositionCircle> softTriangles = new();
     private readonly FixedList<VertexPositionCircle> quads = new();
-    
-    public void DrawShadows(
+
+    private void DrawShadows(
         ILight light,
         IEnumerable<ILightingOccluder> occluders,
         Camera camera)
     {
         basicEffect.View = camera.GetViewMatrix(graphicsDevice.Viewport.Bounds);
-        
+
         hardTriangles.Resize(occluders.Count() * 3);
         hardTriangles.Reset();
-        
+
         softTriangles.Resize(occluders.Count() * 3);
         softTriangles.Reset();
-        
+
         quads.Resize(occluders.Count() * 4 * 4);
         quads.Reset();
-        
+
         foreach (var occluder in occluders)
         {
             AddShadowVertices(light, occluder, hardTriangles, softTriangles, quads);
         }
-        
+
         drawHelper.DrawTriangles(hardTriangles.Array, basicEffect, BlendState.AlphaBlend, occluders.Count());
-        
-        occlusionShadowEffect.Parameters["WorldViewProjection"].SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
+
+        occlusionShadowEffect.Parameters["WorldViewProjection"]
+            .SetValue(camera.GetViewMatrix(graphicsDevice.Viewport.Bounds));
         occlusionShadowEffect.Parameters["lightPosition"].SetValue(light.LightPosition);
         occlusionShadowEffect.Parameters["lightRadius"].SetValue(light.LightRadius);
-        
+
         drawHelper.DrawTriangles(softTriangles.Array, occlusionShadowEffect, BlendState.AlphaBlend, occluders.Count());
         drawHelper.DrawQuads(quads.Array, occlusionShadowEffect, BlendState.AlphaBlend, occluders.Count() * 4);
     }
-    
+
     private void AddShadowVertices(
         ILight light,
         ILightingOccluder occluder,
@@ -108,21 +118,21 @@ public class LightRenderer : IDisposable
             float sin = (float)Math.Sin(theta);
             return new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos) + lightPos;
         }
-        
+
         void AddSoftTriangle(Vector2 p1, Vector2 p2, Vector2 p3)
         {
             softTriangles.Add(ConvertVector(p1, occluder.LightPosition, occluder.Radius));
             softTriangles.Add(ConvertVector(p2, occluder.LightPosition, occluder.Radius));
             softTriangles.Add(ConvertVector(p3, occluder.LightPosition, occluder.Radius));
         }
-        
+
         void AddHardTriangle(Vector2 p1, Vector2 p2, Vector2 p3)
         {
             hardTriangles.Add(ConvertVector(p1, Color.Black));
             hardTriangles.Add(ConvertVector(p2, Color.Black));
             hardTriangles.Add(ConvertVector(p3, Color.Black));
         }
-        
+
         void AddQuad(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4)
         {
             quads.Add(ConvertVector(p1, occluder.LightPosition, occluder.Radius));
@@ -156,7 +166,7 @@ public class LightRenderer : IDisposable
 
         Vector2 exTanLeftEnd = ExtendShadowRay(exTanLeftLi, exTanLeftOc, ShadowLength);
         Vector2 exTanRightEnd = ExtendShadowRay(exTanRightLi, exTanRightOc, ShadowLength);
-        
+
         Vector2 inTanLeftEnd = ExtendShadowRay(inTanRightLi, inTanLeftOc, ShadowLength);
         Vector2 inTanRightEnd = ExtendShadowRay(inTanLeftLi, inTanRightOc, ShadowLength);
 
@@ -165,7 +175,7 @@ public class LightRenderer : IDisposable
 
         Vector2 rightSplitterEnd = ExtendShadowRay(inTanLeftLi, exTanRightOc, ShadowLength);
         Vector2 leftSplitterEnd = ExtendShadowRay(inTanRightLi, exTanLeftOc, ShadowLength);
-        
+
         AddQuad(exTanLeftOc, umbraIntersect.Value, leftSplitterEnd, exTanRightEnd);
         AddQuad(umbraIntersect.Value, exTanRightOc, exTanLeftEnd, rightSplitterEnd);
         AddHardTriangle(exTanRightOc, exTanLeftOc, umbraIntersect.Value);
@@ -186,7 +196,7 @@ public class LightRenderer : IDisposable
         dir.Normalize();
         return rayStart + dir * shadowLength;
     }
-    
+
     private static Vector2? GetIntersection(Vector2 p1, Vector2 p2, Vector2 q1, Vector2 q2)
     {
         var r = p2 - p1;
@@ -218,7 +228,7 @@ public class LightRenderer : IDisposable
     {
         return new(new(v, 0), occluderPosition, occluderRadius);
     }
-    
+
     private VertexPositionColor ConvertVector(Vector2 v, Color color)
     {
         return new(new(v, 0), color);

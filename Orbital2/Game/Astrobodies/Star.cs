@@ -16,7 +16,7 @@ public class Star : PhysicalGameObject, ILight
     public const float RadianceConstant = 20000f;
     public float LightRadius => Radius;
     public Color LightColor => Color.Orange;
-    public float LightIntensity => 20000f;
+    public float LightIntensity => Body.Circumference * 25;
 
     public Star(Body body) : base(body)
     {

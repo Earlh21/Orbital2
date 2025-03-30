@@ -243,7 +243,7 @@ public class Orbital : Microsoft.Xna.Framework.Game
                 voronoiEffect.Radius = star.Radius;
                 voronoiEffect.Color0 = Color.Yellow.ToVector4();
                 voronoiEffect.Color1 = Color.OrangeRed.ToVector4();
-                voronoiEffect.WarpStrength = 0.7f;
+                voronoiEffect.WarpStrength = 0.85f;
                 voronoiEffect.VoronoiScale = 3;
                 voronoiEffect.VoronoiJitter = 1;
 
@@ -274,23 +274,42 @@ public class Orbital : Microsoft.Xna.Framework.Game
     {
         var stars = GameWorld.GameObjects.OfType<Star>().ToArray();
         var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().Where(o => o is not Star);
-
-        lightRenderer.DrawLight(stars[0], camera);
         
-        foreach (var star in stars)
+        lightRenderer.DrawLighting(stars[0], occluders, camera);
+        
+        //List<RenderTarget2D> targets = [];
+        
+        /**foreach (var star in stars)
         {
-            lightRenderer.DrawShadows(star, occluders, camera);
+            var renderTarget = new RenderTarget2D(
+                GraphicsDevice,
+                GraphicsDevice.Viewport.Width,
+                GraphicsDevice.Viewport.Height,
+                false,
+                SurfaceFormat.Bgra4444,
+                DepthFormat.None,
+                0,
+                RenderTargetUsage.PreserveContents
+            );
+            
+            GraphicsDevice.SetRenderTarget(renderTarget);
+            GraphicsDevice.Clear(Color.Black);
+            
+            lightRenderer.DrawLighting(star, occluders, camera);
+            
+            targets.Add(renderTarget);
         }
         
-        /**
+        GraphicsDevice.SetRenderTarget(null);
         
-        var star = GameWorld.GameObjects.FirstOrDefault(o => o is Star) as Star;
-        if (star == null) return;
-
-        var occluders = GameWorld.PhysicalObjects.Cast<ILightingOccluder>().Where(o => o is not Star);
-
-        lightRenderer.DrawLight(star, camera);
-        lightRenderer.DrawShadows(star, occluders, camera);**/
+        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+        
+        foreach (var target in targets)
+        {
+            spriteBatch.Draw(target, Vector2.Zero, Color.White);
+        }
+        
+        spriteBatch.End();**/
     }
 
     protected override void Draw(GameTime gameTime)
