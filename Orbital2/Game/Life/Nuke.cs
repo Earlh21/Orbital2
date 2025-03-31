@@ -6,11 +6,8 @@ using Orbital2.Physics;
 
 namespace Orbital2.Game.Life;
 
-internal class Nuke(Vector2 position, Vector2 velocity) : PhysicalGameObject(new(position, new() { Hydrogen = 1f }) { Momentum = velocity * 1f }) 
+public class Nuke(Vector2 position, Vector2 velocity) : Ship(position, velocity) 
 {
-    public Propulsion? Propulsion { get; set; }
-    public Resources? Resources { get; set; }
-    
     public Civilization? Owner { get; set; }
     public Body? Target { get; set; }
     
@@ -42,17 +39,5 @@ internal class Nuke(Vector2 position, Vector2 velocity) : PhysicalGameObject(new
         Vector2 targetDirection = (Target.Position - Position).NormalizedCopy();
 
         PropulseDirection(physicsTimestep, targetDirection);
-    }
-
-    private void PropulseDirection(float timestep, Vector2 direction)
-    {
-        if (Propulsion == null) return;
-
-        float force = Propulsion.MaxForce;
-        float impulseExtracted = Propulsion.ExtractImpulse(Resources, force * timestep);
-
-        force = impulseExtracted / timestep;
-
-        Body.ApplyForce(force * direction);
     }
 }

@@ -124,7 +124,7 @@ void CreateTrainingData()
         var (source, target) = GameSetup.GenerateSimpleSetup(20, 40, 10, 20, 0, 5);
 
         return new TrainingSolver.TrainingSetup(new World(new SpatialHashing(40)), source, target);
-    }, 1000, 100, @"C:\Users\Owner\Desktop\training_data.csv");
+    }, 50000, 100, @"C:\Users\Owner\Desktop\training_data.csv");
 
     GenerateTrainingData(() =>
     {

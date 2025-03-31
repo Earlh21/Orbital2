@@ -2,8 +2,8 @@
 
 namespace Orbital2.Game.Life;
 
-internal class Resources
+public class Resources
 {
     public Matter Matter { get; set; } = new();
-    public float Joules { get; set; }
+    public float Energy { get; set; }
 }

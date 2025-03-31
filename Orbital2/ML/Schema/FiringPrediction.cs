@@ -27,7 +27,7 @@ public struct FiringPrediction
         for (int i = 0; i < data.Length; i++)
         {
             array[i, 0] = data[i].ProjectileXNorm;
-            array[i, 1] = data[i].ProjectileYNorm; // Add YNorm
+            array[i, 1] = data[i].ProjectileYNorm;
         }
 
         return torch.tensor(array);

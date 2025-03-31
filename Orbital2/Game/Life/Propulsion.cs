@@ -1,6 +1,6 @@
 ﻿namespace Orbital2.Game.Life;
 
-internal abstract class Propulsion
+public abstract class Propulsion
 {
     public abstract float MaxForce { get; }
 

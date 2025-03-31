@@ -14,7 +14,7 @@ namespace Orbital2.ML.Schema;
 
 public class BallisticModel : Module<Tensor, Tensor>
 {
-    private static readonly int[] Layers = [40, 60, 60, 40];
+    private static readonly int[] Layers = [300, 300, 300, 300, 300, 300];
 
     private readonly Module<Tensor, Tensor> sequential;
 
