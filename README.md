@@ -1,1 +1,1 @@
-![preview](https://i.ibb.co/5x1pLkpz/orbital2-preview.png)
+![preview](https://i.ibb.co/1Gt5PTnm/orbital2-preview.png)
